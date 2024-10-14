@@ -1,0 +1,239 @@
+<html lang="zh">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, user-scalable=no">
+    <title>CryskuraHTTP</title>
+    <link type="images/png" rel="shortcut icon" href="/favicon.png">
+    <script>
+        /*
+            let subfolders=[
+                "文件夹1","文件夹2","文件夹3"
+            ]
+            let files=[
+                "文件1","文件2","文件3"
+            ]
+        */
+        subfolders = JSON.parse(subfolders);
+        files = JSON.parse(files);
+        document.addEventListener("DOMContentLoaded", function () {
+            let path = window.location.pathname.split("/");
+            let titleElement = document.getElementById("title-text");
+            let item = document.createElement("span");
+            titleElement.innerHTML = "";
+            if (path[path.length - 1] == "") {
+                path = path.slice(0, -1);
+            }
+            for (let i = 0; i < path.length; i++) {
+                let item = document.createElement("span");
+                item.innerText = path[i];
+                if (i != path.length - 1 || path.length == 1) {
+                    item.innerText += "/";
+                }
+                if (i != path.length - 1) {
+                    item.onclick = function () {
+                        if (i == 0) {
+                            window.location.href = "/";
+                        } else {
+                            let newPath = window.location.pathname.split("/").slice(0, i + 1).join("/");
+                            window.location.href = newPath;
+                        }
+                    }
+                }
+                item.classList.add("title-item");
+                titleElement.appendChild(item);
+            }
+            document.getElementById("back-button").addEventListener("click", function () {
+                if (window.location.pathname == "/") {
+                    return;
+                }
+                parentPath = window.location.pathname.split("/").slice(0, -1).join("/");
+                if (parentPath == "") {
+                    parentPath = "/";
+                }
+                window.location.href = parentPath;
+            });
+            let subfolderContainer = document.querySelector(".subfolders");
+            let fileContainer = document.querySelector(".files");
+            subfolders.forEach(function (subfolder) {
+                let item = document.createElement("div");
+                item.classList.add("item");
+                item.innerHTML = `<span class="icon-folder"></span><span class="item-name">${subfolder}</span>`;
+                item.addEventListener("click", function () {
+                    if (window.location.pathname[window.location.pathname.length - 1] == "/") {
+                        window.location.href = '//' + window.location.host + window.location.pathname + subfolder;
+                    }
+                    else {
+                        window.location.href = '//' + window.location.host + window.location.pathname + "/" + subfolder;
+                    }
+                });
+                subfolderContainer.appendChild(item);
+            });
+            files.forEach(function (file) {
+                let item = document.createElement("div");
+                item.classList.add("item");
+                item.innerHTML = `<span class="icon-file"></span><span class="item-name">${file}</span>`;
+                item.addEventListener("click", function () {
+                    if (window.location.pathname[window.location.pathname.length - 1] == "/") {
+                        window.location.href = '//' + window.location.host + window.location.pathname + file;
+                    }
+                    else {
+                        window.location.href = '//' + window.location.host + window.location.pathname + "/" + file;
+                    }
+                });
+                fileContainer.appendChild(item);
+            });
+        });
+    </script>
+    <style>
+        body {
+            background: #0001;
+        }
+
+        .container {
+            border: 2px solid #bbb;
+            border-radius: 8px;
+            background: #fff;
+            left: 32px;
+            right: 32px;
+            top: 32px;
+            bottom: 32px;
+            box-shadow: 2px 2px 2px 2px #0002;
+            position: absolute;
+            padding: 15px;
+            display: flex;
+            flex-direction: column;
+        }
+
+        #title-text {
+            overflow: hidden;
+            white-space: nowrap;
+            text-overflow: ellipsis;
+            max-width: calc(100% - 120px);
+        }
+
+        .title-item:hover {
+            padding: 2px 5px;
+            margin: 0px 3px;
+            background: #0001;
+            border-radius: 8px;
+            cursor: pointer;
+        }
+
+        .title-item {
+            transition: 0.5s;
+        }
+
+        .icon-folder {
+            background: url("data:image/svg+xml,%3Csvg width='24' height='24' viewBox='0 0 48 48' fill='none' xmlns='http://www.w3.org/2000/svg'%3E%3Cpath d='M5 8C5 6.89543 5.89543 6 7 6H19L24 12H41C42.1046 12 43 12.8954 43 14V40C43 41.1046 42.1046 42 41 42H7C5.89543 42 5 41.1046 5 40V8Z' fill='none' stroke='%23444' stroke-width='3' stroke-linejoin='round'/%3E%3Cpath d='M43 22H5' stroke='%23444' stroke-width='3' stroke-linejoin='round'/%3E%3Cpath d='M5 16V28' stroke='%23444' stroke-width='3' stroke-linecap='round' stroke-linejoin='round'/%3E%3Cpath d='M43 16V28' stroke='%23444' stroke-width='3' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E");
+            height: 21px;
+            background-repeat: no-repeat;
+            background-size: contain;
+            width: 21px;
+            background-position: center;
+            margin-right: 5px;
+        }
+
+        .icon-file {
+            background: url("data:image/svg+xml,%3Csvg width='24' height='24' viewBox='0 0 48 48' fill='none' xmlns='http://www.w3.org/2000/svg'%3E%3Cpath d='M10 44H38C39.1046 44 40 43.1046 40 42V14H30V4H10C8.89543 4 8 4.89543 8 6V42C8 43.1046 8.89543 44 10 44Z' fill='none' stroke='%23444' stroke-width='3' stroke-linecap='round' stroke-linejoin='round'/%3E%3Cpath d='M30 4L40 14' stroke='%23444' stroke-width='3' stroke-linecap='round' stroke-linejoin='round'/%3E%3Cpath d='M17 29L23 34L32 23' stroke='%23444' stroke-width='3' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E");
+            height: 21px;
+            background-repeat: no-repeat;
+            background-size: contain;
+            width: 21px;
+            background-position: center;
+            margin-right: 5px;
+        }
+
+        .flex-span {
+            flex-grow: 1;
+        }
+
+        .file-list {
+            border: 1px solid #0004;
+            border-radius: 4px;
+            padding: 10px;
+            flex-grow: 1;
+            display: flex;
+            flex-direction: column;
+            overflow: auto;
+        }
+
+        .title-bar {
+            margin-bottom: 10px;
+            padding: 0 5px;
+            display: flex;
+        }
+
+        .files,
+        .subfolders {
+            display: grid;
+            grid-gap: 10px;
+            grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
+        }
+
+        .files {
+            margin-top: 10px;
+        }
+
+        .item {
+            padding: 5px 10px;
+            border-radius: 4px;
+            transition: 0.5s;
+            width: fit-content;
+            max-width: calc(100% - 16px);
+            position: relative;
+        }
+
+        .item:hover {
+            background: #0001;
+            cursor: pointer;
+        }
+
+        #back-button {
+            color: #0009;
+            cursor: pointer;
+        }
+
+        .item-name {
+            overflow: hidden;
+            white-space: nowrap;
+            text-overflow: ellipsis;
+            padding-left: 28px;
+            max-width: calc(100% - 28px);
+            display: inline-block;
+        }
+
+        .item .icon-folder,
+        .item .icon-file {
+            position: absolute;
+        }
+    </style>
+    <!--
+        禁止缓存
+        -->
+    <meta http-equiv="Expires" content="0">
+    <meta http-equiv="Pragma" content="no-cache">
+    <meta http-equiv="Cache-control" content="no-cache">
+    <meta http-equiv="Cache" content="no-cache">
+</head>
+
+<body>
+    <div class="container">
+        <div class="title-bar">
+            <span class="icon-folder"></span>
+            <span id="title-text">CryskuraHTTP</span>
+            <span class="flex-span"></span>
+            <span id="back-button">返回上一级</span>
+        </div>
+        <div class="file-list">
+            <div class="subfolders">
+
+            </div>
+            <div class="files">
+
+            </div>
+        </div>
+    </div>
+</body>
+
+</html>
