@@ -29,7 +29,7 @@ This project is not designed to replace full-scale, production-grade HTTP server
 
 ## Installation
 
-1. Download whl file from [GitHub Releases](https://github.com/HofNature/Cryskura/releases) and install it using pip:
+1. Download whl file from [GitHub Releases](https://github.com/HofNature/CryskuraHTTP/releases) and install it using pip:
 
     ```sh
     pip install cryskura-1.0-py3-none-any.wh
@@ -38,8 +38,8 @@ This project is not designed to replace full-scale, production-grade HTTP server
 2. You can also clone the repository and install manually:
 
     ```sh
-    git clone https://github.com/HofNature/Cryskura.git
-    cd Cryskura
+    git clone https://github.com/HofNature/CryskuraHTTP.git
+    cd CryskuraHTTP
     python setup.py install
     ```
 
@@ -128,6 +128,7 @@ server.start()
 ```
 
 This will start the server with the following services:
+
 - FileService: Serves files from `/path/to/video` at the `/Videos` endpoint with resumable download support.
 - RedirectService: Redirects requests from `/Redirect` to `https://www.google.com`.
 - PageService: Serves web pages from `/path/to/html` at the root endpoint `/`.
@@ -153,11 +154,9 @@ server.start()
 
 In this case, `FileService` will have priority over `PageService` for routes that conflict between the two services. So if a request is made to `/files/index.html`, it will be handled by `FileService` and not `PageService`.
 
-
-
 ## Custom Services
 
-To create a custom service, extend the [`BaseService`](command:_github.copilot.openSymbolFromReferences?%5B%22%22%2C%5B%7B%22uri%22%3A%7B%22scheme%22%3A%22file%22%2C%22authority%22%3A%22%22%2C%22path%22%3A%22%2FD%3A%2FPrograming%2FCryskura%2Fcryskura%2FServer.py%22%2C%22query%22%3A%22%22%2C%22fragment%22%3A%22%22%7D%2C%22pos%22%3A%7B%22line%22%3A47%2C%22character%22%3A39%7D%7D%5D%2C%2251783b11-8316-4543-abd7-3779b8ae824c%22%5D "Go to definition") class and implement the required methods:
+To create a custom service, extend the `BaseService` class and implement the required methods:
 
 ```python
 from BaseService import BaseService
@@ -184,7 +183,7 @@ Contributions are welcome! Please open an issue or submit a pull request.
 
 ## Contact
 
-For any questions or suggestions, please open an issue here on GitHub.
+For any questions or suggestions, please open an issue here on [GitHub](https://github.com/HofNature/CryskuraHTTP/issues).
 
 ---
 
