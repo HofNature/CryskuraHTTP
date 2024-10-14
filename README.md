@@ -3,6 +3,8 @@
 CryskuraHTTP is a lightweight, customizable HTTP(s) server implemented in Python.  
 It supports basic HTTP(s) functionalities, including serving files and handling errors, with optional SSL support.
 
+README: [English](README.md) | [中文](README_zh.md)
+
 ## Features
 
 CryskuraHTTP is an extension of Python's built-in `http.server`, with minimal dependencies. You can leverage it to implement Python HTTP services without needing to install large software or libraries.
