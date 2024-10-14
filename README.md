@@ -31,13 +31,19 @@ This project is not designed to replace full-scale, production-grade HTTP server
 
 ## Installation
 
-1. Download whl file from [GitHub Releases](https://github.com/HofNature/CryskuraHTTP/releases) and install it using pip:
+1. Install the package using pip:
+
+    ```sh
+    pip install cryskura
+    ```
+    
+2. You can also download whl file from [GitHub Releases](https://github.com/HofNature/CryskuraHTTP/releases) and install it using pip:
 
     ```sh
     pip install cryskura-1.0-py3-none-any.wh
     ```
 
-2. You can also clone the repository and install manually:
+3. Clone the repository and install manually if you want to modify the source code:
 
     ```sh
     git clone https://github.com/HofNature/CryskuraHTTP.git
