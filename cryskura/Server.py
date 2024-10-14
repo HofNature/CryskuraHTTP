@@ -78,6 +78,7 @@ class HTTPServer:
             ssl_ctx = ssl.create_default_context(ssl.Purpose.CLIENT_AUTH)
             ssl_ctx.load_cert_chain(certfile=self.certfile)
             self.server.socket = ssl_ctx.wrap_socket(self.server.socket, server_side=True)
+        print(f"Server started at {self.interface}:{self.port}")
         if threaded:
             self.thread = threading.Thread(target=self.server.serve_forever)
             self.thread.start()

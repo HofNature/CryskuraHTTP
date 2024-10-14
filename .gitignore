@@ -1,3 +1,6 @@
 
 *.pyc
 Test.py
+/build
+/cryskura.egg-info
+/dist
