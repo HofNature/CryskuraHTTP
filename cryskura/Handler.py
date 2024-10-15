@@ -49,7 +49,7 @@ class HTTPRequestHandler(SimpleHTTPRequestHandler):
                     elif operation=="HEAD":
                         service.handle_HEAD(self,path,args)
                     return
-        self.errsvc.handle(self,route,args,operation,HTTPStatus.NOT_FOUND)
+        self.errsvc.handle(self,path,args,operation,HTTPStatus.NOT_FOUND)
 
     def do_GET(self):
         self.do_OPERATION("GET")

@@ -6,8 +6,8 @@
     <title>CryskuraHTTP</title>
     <link type="images/png" rel="shortcut icon" href="/favicon.png">
     <script>
-        document.addEventListener("DOMContentLoaded", function() {
-            document.getElementById("input-confirm").addEventListener("click", function() {
+        document.addEventListener("DOMContentLoaded", function () {
+            document.getElementById("input-confirm").addEventListener("click", function () {
                 window.location.href = "/";
             });
             /*
@@ -27,10 +27,24 @@
                 }
             }
             */
-            if (error == "") {
-                error = "未知错误";
+            // 获取浏览器偏好，翻译页内字符
+            let lang = navigator.language;
+            if (lang && !lang.includes("zh")) {
+                let backButton = document.getElementById("input-confirm");// 返回首页
+                backButton.innerText = "Back to Home";
+                if (error == "") {
+                    error = "Unknown Error";
+                }
+                document.getElementById("warning-text").innerText = "Error: " + error;
             }
-            document.getElementById("warning-text").innerText = "错误：" + error;
+            else{
+                if (error == "") {
+                    error = "未知错误";
+                }
+                document.getElementById("warning-text").innerText = "错误：" + error;
+            }
+
+
         });
     </script>
     <style>

@@ -17,6 +17,74 @@
         subfolders = JSON.parse(subfolders);
         files = JSON.parse(files);
         document.addEventListener("DOMContentLoaded", function () {
+            // 获取浏览器偏好，翻译页内字符
+
+            let maxFileSize = 1024 * 1024 * 64;// 64MB
+            let backButton = document.getElementById("back-button");// 返回上一级
+            let lang = navigator.language;
+            let isEnglish = (lang && !lang.includes("zh"));
+
+            if (allowUpload) {
+                backButton.innerText = isEnglish ? "Upload" : "上传文件";
+                backButton.addEventListener("click", function () {
+                    let input=document.createElement("input");
+                    input.type="file";
+                    input.multiple=true;
+                    input.addEventListener("change",function(){
+                        let files=input.files;
+                        if (files.length==0){
+                            return;
+                        }
+                        for(let i=0;i<files.length;i++){
+                            file=files[i];
+                            if (file.size>maxFileSize){
+                                // 文件过大易失败
+                                if (isEnglish){
+                                    if (!confirm("File "+file.name+" is a bit large, file transfer may fail, continue?")){
+                                        return;
+                                    }
+                                }
+                                else{
+                                    if (!confirm("文件 "+file.name+" 过大，文件传输可能失败，继续？")){
+                                        return;
+                                    }
+                                }
+                            }
+                            let formData=new FormData();
+                            formData.append("file",file);
+                            document.querySelector("html").style.cursor="wait";
+                            fetch(window.location.pathname,{
+                                method:"POST",
+                                body:formData
+                            }).then(function(response){
+                                document.querySelector("html").style.cursor="auto";
+                                if(response.ok){
+                                    window.location.reload();
+                                }
+                                else{
+                                    alert("上传失败");
+                                }
+                            });
+                        }
+                    });
+                    input.click();
+                });
+            }
+            else {
+                backButton.innerText = isEnglish ? "Parent Directory" : "返回上一级";
+                backButton.addEventListener("click", function () {
+                    if (window.location.pathname == "/") {
+                        return;
+                    }
+                    parentPath = window.location.pathname.split("/").slice(0, -1).join("/");
+                    if (parentPath == "") {
+                        parentPath = "/";
+                    }
+                    window.location.href = parentPath;
+                });
+            }
+
+
             let path = window.location.pathname.split("/");
             let titleElement = document.getElementById("title-text");
             let item = document.createElement("span");
@@ -26,7 +94,7 @@
             }
             for (let i = 0; i < path.length; i++) {
                 let item = document.createElement("span");
-                item.innerText = path[i];
+                item.innerText = decodeURIComponent(path[i]);
                 if (i != path.length - 1 || path.length == 1) {
                     item.innerText += "/";
                 }
@@ -43,18 +111,10 @@
                 item.classList.add("title-item");
                 titleElement.appendChild(item);
             }
-            document.getElementById("back-button").addEventListener("click", function () {
-                if (window.location.pathname == "/") {
-                    return;
-                }
-                parentPath = window.location.pathname.split("/").slice(0, -1).join("/");
-                if (parentPath == "") {
-                    parentPath = "/";
-                }
-                window.location.href = parentPath;
-            });
+
             let subfolderContainer = document.querySelector(".subfolders");
             let fileContainer = document.querySelector(".files");
+
             subfolders.forEach(function (subfolder) {
                 let item = document.createElement("div");
                 item.classList.add("item");
@@ -69,6 +129,7 @@
                 });
                 subfolderContainer.appendChild(item);
             });
+
             files.forEach(function (file) {
                 let item = document.createElement("div");
                 item.classList.add("item");

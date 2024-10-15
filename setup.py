@@ -8,13 +8,17 @@ long_description = long_description.replace("README: [English](README.md) | [中
 
 setup(
     name="cryskura",
-    version="1.0-alpha1",
+    version="1.0-alpha2",
     author="HofNature",
     description="A straightforward Python package that functions as an HTTP(s) server",
     long_description=long_description,
     long_description_content_type='text/markdown',    
     packages=find_packages(),
-    install_requires=["psutil","upnpclient"],
+    install_requires=["psutil"],
+    extras_require={
+        'upnp': ["upnpclient"]
+    },
+    url="https://github.com/HofNature/CryskuraHTTP",
     python_requires=">=3.7",
     license="MIT",
     keywords=["http", "https", "server", "web", "http server", "https server"],

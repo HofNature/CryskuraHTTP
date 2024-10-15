@@ -41,6 +41,7 @@ class HTTPServer:
         if uPnP:
             self.uPnP = uPnPClient(interface)
             if not self.uPnP.available:
+                print("Disabling uPnP port forwarding.")
                 self.uPnP = None
         else:
             self.uPnP = None
@@ -101,6 +102,7 @@ class HTTPServer:
                     print(f"Service is available at {mapping[0]}:{mapping[1]}")
         if threaded:
             self.thread = threading.Thread(target=self.serve_forever)
+            self.thread.setDaemon(True)
             self.thread.start()
         else:
             self.serve_forever()
@@ -108,14 +110,20 @@ class HTTPServer:
     def serve_forever(self):
         try:
             self.server.serve_forever()
-        except KeyboardInterrupt:
+        except KeyboardInterrupt as e:
+            if self.uPnP is not None:
+                self.uPnP.remove_port_mapping()
+            print("Server on port {self.port} stopped.")
             self.stop()
+            # os.kill(os.getpid(), 9)
+        except Exception as e:
+            if self.uPnP is not None:
+                self.uPnP.remove_port_mapping()
+            raise e
             
     def stop(self):
         # 停止HTTP服务器
         if self.server is not None:
-            if self.uPnP is not None:
-                self.uPnP.remove_port_mapping()
             if self.thread is not None:
                 self.server.shutdown()
                 self.thread.join()

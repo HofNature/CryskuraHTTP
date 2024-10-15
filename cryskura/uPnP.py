@@ -1,5 +1,11 @@
 import ipaddress
-import upnpclient
+
+requirements_installed = True
+try:
+    import upnpclient
+except ImportError:
+    requirements_installed = False
+    
 import psutil
 import socket
 from urllib import parse
@@ -7,6 +13,11 @@ from socket import gethostbyname
 
 class uPnPClient:
     def __init__(self, interface:str):
+        if not requirements_installed:
+            self.available=False
+            print("uPnP client is not available because upnpclient is not installed. Please install it using 'pip install upnpclient' or 'pip install cryskura[upnp]'")
+            return
+        
         self.interface = interface
         self.port_mapping=[]
         try:
@@ -17,6 +28,9 @@ class uPnPClient:
             self.available=False
    
     def get_useful_devices(self,interface):
+        if not self.available:
+            raise ValueError("uPnP client is not available.")
+        
         devices = upnpclient.discover()
         
         addrs = psutil.net_if_addrs()
@@ -69,6 +83,9 @@ class uPnPClient:
         return useful_devices
     
     def add_port_mapping(self, remote_port:int, local_port:int, protocol:str, description:str):
+        if not self.available:
+            raise ValueError("uPnP client is not available.")
+        
         if len(self.devices) == 0:
             print(f"No useful devices found on interface {self.interface}")
             return False,[]
@@ -105,6 +122,9 @@ class uPnPClient:
             return True,[(remote_ip,remote_port,protocol) for _,remote_port,protocol,remote_ip,_ in self.port_mapping]
         
     def remove_port_mapping(self):
+        if not self.available:
+            raise ValueError("uPnP client is not available.")
+        
         if len(self.port_mapping) == 0:
             print("No port mapping found.")
             return

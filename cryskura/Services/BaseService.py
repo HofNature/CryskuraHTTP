@@ -1,4 +1,5 @@
 from .. import Handler
+from http import HTTPStatus
 
 class Route:
     def __init__(self, path, methods: list, type: str):
@@ -33,11 +34,25 @@ class Route:
         
 
 class BaseService:
-    def __init__(self, route:list):
+    def __init__(self, route:list, auth_func=None):
         for r in route:
             if not isinstance(r, Route):
                 raise ValueError(f"Route {r} is not a valid route.")
+        self.auth_func = auth_func
         self.route = route
+
+    def auth_verify(self, request:Handler, path:list,args:dict,operation:str):
+        if self.auth_func is not None:
+            origin_cookie = request.headers.get("Cookie")
+            cookies = {}
+            if origin_cookie is not None:
+                for cookie in origin_cookie.split(";"):
+                    cookie = cookie.split("=")
+                    cookies[cookie[0].strip()] = cookie[1].strip()
+            if not self.auth_func(cookies,path,args,operation):
+                request.errsvc.handle(request,path,args,operation,HTTPStatus.UNAUTHORIZED)
+                return False
+        return True
 
     def handle_GET(self, request:Handler, path:list,args:dict):
         raise NotImplementedError

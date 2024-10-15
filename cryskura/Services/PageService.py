@@ -4,13 +4,13 @@ import os
 from http import HTTPStatus
 
 class PageService(BaseService):
-    def __init__(self, local_path, remote_path,index_pages=("index.html", "index.htm")):
+    def __init__(self, local_path, remote_path,index_pages=("index.html", "index.htm"),auth_func=None):
         self.routes = [
             Route(remote_path, ["GET","HEAD"], "prefix"),
         ]
         self.local_path = os.path.abspath(local_path)
         self.index_pages = index_pages
-        super().__init__(self.routes)
+        super().__init__(self.routes, auth_func)
         self.remote_path = self.routes[0].path
     
     def calc_path(self, path:list):
@@ -32,6 +32,8 @@ class PageService(BaseService):
         return isValid, r_directory, r_path
 
     def handle_GET(self, request:Handler, path:list,args:dict):
+        if not self.auth_verify(request, path, args, "GET"):
+            return
         isValid, request.directory, request.path = self.calc_path(path)
         if not isValid:
             request.errsvc.handle(request, path, args, "GET",HTTPStatus.NOT_FOUND)
@@ -44,6 +46,8 @@ class PageService(BaseService):
                 f.close()
     
     def handle_HEAD(self, request:Handler, path:list,args:dict):
+        if not self.auth_verify(request, path, args, "HEAD"):
+            return
         isValid,request.directory, request.path = self.calc_path(path)
         if not isValid:
             request.errsvc.handle(request, path, args, "HEAD",HTTPStatus.NOT_FOUND)
