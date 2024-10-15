@@ -18,11 +18,11 @@ class uPnPClient:
             print("uPnP client is not available because upnpclient is not installed. Please install it using 'pip install upnpclient' or 'pip install cryskura[upnp]'")
             return
         
+        self.available=True
         self.interface = interface
         self.port_mapping=[]
         try:
             self.devices = self.get_useful_devices(interface)
-            self.available=True
         except:
             print(f"Failed to initialize uPnP client on interface {interface}")
             self.available=False
@@ -95,14 +95,14 @@ class uPnPClient:
             remote_ip=device.WANIPConn1.GetExternalIPAddress()['NewExternalIPAddress']
             try:
                 device.WANIPConn1.DeletePortMapping(
-                    NewRemoteHost='',
+                    NewRemoteHost='0.0.0.0',
                     NewExternalPort=remote_port,
                     NewProtocol=protocol
                 )
             except:
                 pass
             device.WANIPConn1.AddPortMapping(
-                NewRemoteHost='',
+                NewRemoteHost='0.0.0.0',
                 NewExternalPort=remote_port,
                 NewProtocol=protocol,
                 NewInternalPort=local_port,
@@ -131,7 +131,7 @@ class uPnPClient:
         for device, port, protocol,_,devip in self.port_mapping:
             try:
                 device.WANIPConn1.DeletePortMapping(
-                    NewRemoteHost='',
+                    NewRemoteHost='0.0.0.0',
                     NewExternalPort=port,
                     NewProtocol=protocol
                 )

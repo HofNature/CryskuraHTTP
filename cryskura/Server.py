@@ -113,7 +113,7 @@ class HTTPServer:
         except KeyboardInterrupt as e:
             if self.uPnP is not None:
                 self.uPnP.remove_port_mapping()
-            print("Server on port {self.port} stopped.")
+            print(f"Server on port {self.port} stopped.")
             self.stop()
             # os.kill(os.getpid(), 9)
         except Exception as e:
