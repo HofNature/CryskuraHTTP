@@ -161,7 +161,7 @@ server.start()
 要创建自定义服务，请扩展 `BaseService` 类并实现所需的方法：
 
 ```python
-from BaseService import BaseService
+from cryskura.Services import BaseService, Route
 
 class MyService(BaseService):
     def __init__(self):

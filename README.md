@@ -167,7 +167,7 @@ In this case, `FileService` will have priority over `PageService` for routes tha
 To create a custom service, extend the `BaseService` class and implement the required methods:
 
 ```python
-from BaseService import BaseService
+from cryskura.Services import BaseService, Route
 
 class MyService(BaseService):
     def __init__(self):
@@ -183,7 +183,7 @@ class MyService(BaseService):
 
 ## License
 
-This project is licensed under the MIT License. See the [LICENSE](LICENSE) file for details.
+This project is licensed under the MIT License. See the [LICENSE](https://github.com/HofNature/CryskuraHTTP/blob/main/LICENSE) file for details.
 
 ## Contributing
 
