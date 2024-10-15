@@ -14,7 +14,7 @@ setup(
     long_description=long_description,
     long_description_content_type='text/markdown',    
     packages=find_packages(),
-    install_requires=["psutil"],
+    install_requires=["psutil","upnpclient"],
     python_requires=">=3.7",
     license="MIT",
     keywords=["http", "https", "server", "web", "http server", "https server"],

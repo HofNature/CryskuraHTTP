@@ -15,6 +15,7 @@ def main():
     parser.add_argument("-w", "--webMode", action="store_true", help="Enable web mode. Which means only files can be accessed, not directories.")
     parser.add_argument("-r", "--allowResume", action="store_true", help="Allow resume download.")
     parser.add_argument("-b", "--browser", action="store_true", help="Open the browser after starting the server.")
+    parser.add_argument("-u", "--uPnP", action="store_true", help="Enable uPnP port forwarding.")
     args = parser.parse_args()
 
     if args.path is not None:
@@ -34,7 +35,7 @@ def main():
     if args.certfile is not None:
         if not os.path.exists(args.certfile):
             raise ValueError(f"Certfile {args.certfile} does not exist.")
-    server = HTTPServer(interface=args.interface, port=args.port, services=services, server_name=args.name, forcePort=args.forcePort, certfile=args.certfile)
+    server = HTTPServer(interface=args.interface, port=args.port, services=services, server_name=args.name, forcePort=args.forcePort, certfile=args.certfile, uPnP=args.uPnP)
     if args.browser:
         webbrowser.open(f"http://{args.interface}:{args.port}")
     server.start(threaded=False)

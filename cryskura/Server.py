@@ -4,14 +4,15 @@ import socket
 import psutil
 import threading
 from http.server import ThreadingHTTPServer
+from .uPnP import uPnPClient
 from .Handler import HTTPRequestHandler as Handler
 from .Services import BaseService, FileService, ErrorService
 
 class HTTPServer:
-    def __init__(self, interface:str="127.0.0.1", port:int=8080, services=None, error_service=None, server_name:str="CryskuraHTTP/1.0", forcePort:bool=False,certfile=None):
+    def __init__(self, interface:str="127.0.0.1", port:int=8080, services=None, error_service=None, server_name:str="CryskuraHTTP/1.0", forcePort:bool=False,certfile=None,uPnP=False):
         # 获取系统所有网卡的IP地址
         addrs = psutil.net_if_addrs()
-        available_devices = []
+        available_devices = ["Any Available Interface"]
         available_interfaces = ["0.0.0.0"]
         for device, addrs in addrs.items():
             for addr in addrs:
@@ -35,6 +36,14 @@ class HTTPServer:
                     raise ValueError(f"Port {port} is already in use.")
         except Exception as e:
             print(f"Error checking port availability: {e} , skipping check")
+
+        # 检查uPnP是否可用
+        if uPnP:
+            self.uPnP = uPnPClient(interface)
+            if not self.uPnP.available:
+                self.uPnP = None
+        else:
+            self.uPnP = None
             
 
         # Linux下端口小于1024需要root权限
@@ -72,6 +81,7 @@ class HTTPServer:
         else:
             self.certfile = None
         
+        self.server_name = server_name
         self.server = None
         self.thread = None
         
@@ -84,15 +94,28 @@ class HTTPServer:
             ssl_ctx.load_cert_chain(certfile=self.certfile)
             self.server.socket = ssl_ctx.wrap_socket(self.server.socket, server_side=True)
         print(f"Server started at {self.interface}:{self.port}")
+        if self.uPnP is not None:
+            res,map=self.uPnP.add_port_mapping(self.port,self.port,"TCP",self.server_name)
+            if res:
+                for mapping in map:
+                    print(f"Service is available at {mapping[0]}:{mapping[1]}")
         if threaded:
-            self.thread = threading.Thread(target=self.server.serve_forever)
+            self.thread = threading.Thread(target=self.serve_forever)
             self.thread.start()
         else:
-            self.server.serve_forever()
+            self.serve_forever()
 
+    def serve_forever(self):
+        try:
+            self.server.serve_forever()
+        except KeyboardInterrupt:
+            self.stop()
+            
     def stop(self):
         # 停止HTTP服务器
         if self.server is not None:
+            if self.uPnP is not None:
+                self.uPnP.remove_port_mapping()
             if self.thread is not None:
                 self.server.shutdown()
                 self.thread.join()
