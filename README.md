@@ -1,21 +1,21 @@
 # CryskuraHTTP
 
 CryskuraHTTP is a lightweight, customizable HTTP(s) server implemented in Python.  
-It supports basic HTTP(s) functionalities, including serving files and handling errors, with optional SSL support.
+It supports basic HTTP(s) functionalities, including serving files and handling errors, with support for custom services, API calls, and authentication.
 
 README: [English](README.md) | [中文](README_zh.md)
 
 ## Features
 
-CryskuraHTTP is an extension of Python's built-in `http.server`, with minimal dependencies. You can leverage it to implement Python HTTP services without needing to install large software or libraries.
+CryskuraHTTP is an extension of Python's built-in `http.server`, with minimal dependencies. You can leverage it to implement Python HTTP services without needing to install large software or libraries. It can also be used as a file sharing tool, supporting file serving and uploading through the browser, and can be launched from the Windows right-click menu.
 
 - **Customizable Services**: Easily add custom services by extending the `BaseService` class.
 - **Customizable API Calls**: Define custom API calls with the `APIService` class.
 - **Error Handling**: Customizable error handling via the `ErrorService` class.
-- **File Serving**: Serve files from a specified directory.
-- **File Uploading**: Handle file uploads via POST requests.
-- **WebPage Serving**: Serve web pages without allowing directory listing.
-- **Customizable Routes**: Define custom routes for your services.
+- **File Serving**: Serve files from a specified directory via the `FileService` class.
+- **File Uploading**: Handle file uploads via POST requests with the `FileService` class.
+- **WebPage Serving**: Serve web pages without allowing directory listing via the `PageService` class.
+- **Customizable Routes**: Define custom routes for your services with the `Route` class.
 - **Customizable Authentication**: Implement custom authentication for your services.
 - **Auto uPnP Port Forwarding**: Automatically forward ports using uPnP.
 - **Request Handling**: Handle GET, POST, HEAD requests.
@@ -24,6 +24,7 @@ CryskuraHTTP is an extension of Python's built-in `http.server`, with minimal de
 - **SSL Support**: Optionally enable SSL by providing a certificate file.
 - **Threaded Server**: Supports multi-threaded request handling for better performance.
 - **Command-Line Interface**: Run the server from the command line with custom settings.
+- **Right Click Support**: Supports right-click context menu for launching the server on Windows.
 
 This project is not designed to replace full-scale, production-grade HTTP servers. Instead, it is ideal for small-scale web UI development or for use alongside tools like `pywebview` and `qtwebengine`. So don't expect it to handle thousands of concurrent connections or to have advanced features like load balancing or caching.
 
@@ -39,7 +40,7 @@ This project is not designed to replace full-scale, production-grade HTTP server
     ```sh
     pip install cryskura
     ```
-    
+
 2. You can also download whl file from [GitHub Releases](https://github.com/HofNature/CryskuraHTTP/releases) and install it using pip:
 
     ```sh
@@ -76,6 +77,24 @@ cryskura --interface 127.0.0.1 --port 8080 --path /path/to/serve
 
 This will start the server on `localhost` at port `8080` and serve files from `/path/to/serve`.
 
+### Register to Right-Click Menu
+
+You can add the server to the right-click context menu on Windows by running:
+
+```sh
+cryskura --addRightClick # You can also use -ar as a short form
+```
+
+> **Note**: If arguments like `--interface`, `--port`, `--browser`, etc., are provided, the server will start with the specified settings when launched from the right-click menu.
+
+If you want to remove it from the right-click menu, run:
+
+```sh
+cryskura --removeRightClick # You can also use -rr as a short form
+```
+
+> **Note**: This feature is only available on Windows. For Windows 11 24h2 and above, if Sudo is enabled, it will be called automatically; otherwise, you need to run it manually with administrator privileges.
+
 ### Stopping the Server
 
 When using the Python API, you can stop the server by calling the `stop()` method:
@@ -106,13 +125,14 @@ This will show the available options:
 - `-f, --forcePort`: Force to use the specified port even if it is already in use.
 - `-t, --allowUpload`: Allow file upload.
 - `-r, --allowResume`: Allow resume download.
+- `-ar, --addRightClick`: Add to right-click menu.
+- `-rr, --removeRightClick`: Remove from right-click menu.
 - `-d PATH, --path PATH`: The path to the directory to serve.
 - `-n NAME, --name NAME`: The name of the server.
 - `-p PORT, --port PORT`: The port to listen on.
 - `-c CERTFILE, --certfile CERTFILE`: The path to the certificate file.
 - `-i INTERFACE, --interface INTERFACE`: The interface to listen on.
 - `-j HTTP_TO_HTTPS, --http_to_https HTTP_TO_HTTPS`: Port to redirect HTTP requests to HTTPS.
-
 
 ## Using as a Python Module
 
