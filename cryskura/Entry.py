@@ -201,10 +201,16 @@ def main():
     if lanuch:
         server = HTTPServer(interface=args.interface, port=args.port, services=services, server_name=args.name, forcePort=args.forcePort, certfile=args.certfile, uPnP=args.uPnP)
         if args.browser:
-            if args.interface == "0.0.0.0" or args.interface == "::1":
-                webbrowser.open(f"http://localhost:{args.port}")
+            if args.certfile is not None:
+                if args.interface == "0.0.0.0" or args.interface == "::1":
+                    webbrowser.open(f"https://localhost:{args.port}")
+                else:
+                    webbrowser.open(f"https://{args.interface}:{args.port}")
             else:
-                webbrowser.open(f"http://{args.interface}:{args.port}")
+                if args.interface == "0.0.0.0" or args.interface == "::1":
+                    webbrowser.open(f"http://localhost:{args.port}")
+                else:
+                    webbrowser.open(f"http://{args.interface}:{args.port}")
         server.start(threaded=False)
     elif args.addRightClick:
         add_to_right_click_menu(args.interface, args.port, args.certfile, args.forcePort, args.name, args.http_to_https, args.allowResume, args.browser, args.uPnP,custome_name)
