@@ -3,7 +3,7 @@ from .. import Handler
 import os
 import json
 from http import HTTPStatus
-from ..Pages import Directory_Page
+from ..Pages import Directory_Page,Cryskura_Icon
 from urllib.parse import quote
 
 class FileService(BaseService):
@@ -77,6 +77,7 @@ class FileService(BaseService):
             request.send_header("Content-Type", "text/html")
             request.end_headers()
             Page=Directory_Page.replace("CryskuraHTTP", self.server_name)
+            Page=Page.replace('background: url("Cryskura.png");', f'background: url("{Cryskura_Icon}");')
             # 列出目录下的文件和文件夹
             dirs, files = [], []
             for file in os.listdir(real_path):
