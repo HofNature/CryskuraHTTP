@@ -4,6 +4,7 @@ import os
 import json
 from http import HTTPStatus
 from ..Pages import Directory_Page
+from urllib.parse import quote
 
 class FileService(BaseService):
     def __init__(self, local_path, remote_path, isFolder=True,allowResume=False,server_name="CryskuraHTTP",auth_func=None,allowUpload=False):
@@ -184,9 +185,9 @@ class FileService(BaseService):
                         f.write(this_part)
             request.send_response(HTTPStatus.CREATED)
             if request.path[-1]!="/":
-                request.send_header("Location", request.path+"/"+filename)
+                request.send_header("Location", request.path+"/"+quote(filename))
             else:
-                request.send_header("Location", request.path+filename)
+                request.send_header("Location", request.path+quote(filename))
             request.end_headers()
         else:
             request.errsvc.handle(request, path, args, "POST", HTTPStatus.LENGTH_REQUIRED)

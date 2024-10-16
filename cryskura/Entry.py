@@ -27,17 +27,19 @@ def main():
             raise ValueError(f"Path {args.path} does not exist.")
         if not os.path.isdir(args.path):
             raise ValueError(f"Path {args.path} is not a directory.")
-        if args.webMode:
-            if args.allowResume:
-                raise ValueError("Web mode does not support resume download.")
-            if args.allowUpload:
-                raise ValueError("Web mode does not support file upload.")
-            service = PageService(args.path, "/")
-        else:
-            service = FileService(args.path, "/", server_name=args.name, allowResume=args.allowResume, allowUpload=args.allowUpload)
-        services = [service]
     else:
-        services = None
+        args.path = os.getcwd()
+    if args.webMode:
+        if args.allowResume:
+            raise ValueError("Web mode does not support resume download.")
+        if args.allowUpload:
+            raise ValueError("Web mode does not support file upload.")
+        service = PageService(args.path, "/")
+    else:
+        service = FileService(args.path, "/", server_name=args.name, allowResume=args.allowResume, allowUpload=args.allowUpload)
+    services = [service]
+    # else:
+    #     services = None
     if args.certfile is not None:
         if not os.path.exists(args.certfile) or not os.path.isfile(args.certfile):
             raise ValueError(f"Certfile {args.certfile} does not exist.")
