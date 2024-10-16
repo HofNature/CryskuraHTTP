@@ -1,4 +1,4 @@
 include cryskura\Pages\directory.html
 include cryskura\Pages\error.html
-include cryskura\Icons\*
 include cryskura\Pages\Cryskura.png
+include cryskura\Icons\*

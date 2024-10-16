@@ -9,7 +9,7 @@ long_description = long_description.replace("CryskuraHTTP.png","https://github.c
 
 setup(
     name="cryskura",
-    version="1.0-alpha10",
+    version="1.0-alpha11",
     author="HofNature",
     description="A straightforward Python package that functions as an HTTP(s) server",
     long_description=long_description,
