@@ -1,9 +1,13 @@
 # CryskuraHTTP
 
-CryskuraHTTP 是一个用 Python 实现的轻量级、可定制的 HTTP(s) 服务器。  
-它支持基本的 HTTP(s) 功能，包括文件服务和错误处理，并支持自定义服务和鉴权。
+<div align="center">
+    <img src="CryskuraHTTP.png" alt="CryskuraHTTP Logo" width="500">
 
 帮助文档: [English](README.md) | [中文](README_zh.md)
+
+CryskuraHTTP 是一个用 Python 实现的轻量级、可定制的 HTTP(s) 服务器，支持基本的 HTTP(s) 功能，包括文件服务和错误处理，并支持自定义服务和鉴权。
+
+</div>
 
 ## 特性
 
