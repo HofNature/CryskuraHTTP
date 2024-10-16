@@ -87,6 +87,7 @@ def add_to_right_click_menu(interface:str="0.0.0.0", port:int=8080, certfile=Non
 
     for reg in [r"directory\shell", r"directory\background\shell"]:
         key = winreg.CreateKey(winreg.HKEY_CLASSES_ROOT, reg+r"\CryskuraHTTP")
+        winreg.SetValueEx(key, "Icon", 0, winreg.REG_SZ, os.path.abspath(os.path.join(resource_path, "Icons", "cryskura.ico,0")))
         winreg.SetValueEx(key, "MUIVerb", 0, winreg.REG_SZ, menu_text)
         winreg.SetValueEx(key, "SubCommands", 0, winreg.REG_SZ, "")
         winreg.CloseKey(key)
@@ -95,12 +96,14 @@ def add_to_right_click_menu(interface:str="0.0.0.0", port:int=8080, certfile=Non
 
         shell=winreg.CreateKey(key, "Web")
         winreg.SetValueEx(shell, "MUIVerb", 0, winreg.REG_SZ, web_mode_text)
+        winreg.SetValueEx(shell, "Icon", 0, winreg.REG_SZ, os.path.abspath(os.path.join(resource_path, "Icons", "webpage.ico,0")))
         command=winreg.CreateKey(shell, "command")
         winreg.SetValueEx(command, "", 0, winreg.REG_SZ, f'"{application_path}" {args_web} -d "%V"')
         winreg.CloseKey(command)
         winreg.CloseKey(shell)
 
         shell=winreg.CreateKey(key, "File")
+        winreg.SetValueEx(shell, "Icon", 0, winreg.REG_SZ, os.path.abspath(os.path.join(resource_path, "Icons", "directory.ico,0")))
         winreg.SetValueEx(shell, "MUIVerb", 0, winreg.REG_SZ, file_mode_text)
         command=winreg.CreateKey(shell, "command")
         winreg.SetValueEx(command, "", 0, winreg.REG_SZ, f'"{application_path}" {args} -d "%V"')
@@ -109,6 +112,7 @@ def add_to_right_click_menu(interface:str="0.0.0.0", port:int=8080, certfile=Non
 
         shell=winreg.CreateKey(key, "Upload")
         winreg.SetValueEx(shell, "MUIVerb", 0, winreg.REG_SZ, upload_mode_text)
+        winreg.SetValueEx(shell, "Icon", 0, winreg.REG_SZ, os.path.abspath(os.path.join(resource_path, "Icons", "fileupload.ico,0")))
         command=winreg.CreateKey(shell, "command")
         winreg.SetValueEx(command, "", 0, winreg.REG_SZ, f'"{application_path}" {args_upload} -d "%V"')
         winreg.CloseKey(command)

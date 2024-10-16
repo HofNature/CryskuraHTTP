@@ -5,6 +5,7 @@ this_directory = path.abspath(path.dirname(__file__))
 with open(path.join(this_directory, 'README.md'), encoding='utf-8') as f:
     long_description = f.read()
 long_description = long_description.replace("README: [English](README.md) | [中文](README_zh.md)", "")
+long_description = long_description.replace("CryskuraHTTP.png","https://github.com/HofNature/CryskuraHTTP/raw/main/CryskuraHTTP.png")
 
 setup(
     name="cryskura",
