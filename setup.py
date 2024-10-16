@@ -8,7 +8,7 @@ long_description = long_description.replace("README: [English](README.md) | [中
 
 setup(
     name="cryskura",
-    version="1.0-alpha5",
+    version="1.0-alpha6",
     author="HofNature",
     description="A straightforward Python package that functions as an HTTP(s) server",
     long_description=long_description,
