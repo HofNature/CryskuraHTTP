@@ -59,7 +59,7 @@ class uPnPClient:
                 if devip is not None:
                     useful_devices.append((device,devip))
             # ipv6 情况
-            elif interface == "::":
+            elif interface == "::1":
                 if gateip.version != 6:
                     continue
                 devip=None

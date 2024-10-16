@@ -23,19 +23,21 @@ class HTTPServer:
             raise ValueError(f"Interface {interface} not found. \nAvailable interfaces: \n" + "\n".join([f"{device}: {addr}" for device, addr in zip(available_devices,available_interfaces)]))
         self.interface = interface
 
+        # 检查端口是否被占用
         try:
-            # 检查端口是否被占用
             used_ports = []
             for conn in psutil.net_connections():
                 if conn.laddr.port not in used_ports and conn.laddr.ip == self.interface:
                     used_ports.append(conn.laddr.port)
-            if port in used_ports:
-                if forcePort:
-                    print(f"Port {port} is already in use. Forcing to use port {port}.")
-                else:
-                    raise ValueError(f"Port {port} is already in use.")
         except Exception as e:
-            print(f"Error checking port availability: {e} , skipping check")
+            print(f"Error checking port availability: {e} , skipping check")    
+            used_ports = [] 
+
+        if port in used_ports:
+            if forcePort:
+                print(f"Port {port} is already in use. Forcing to use port {port}.")
+            else:
+                raise ValueError(f"Port {port} is already in use.")
 
         # 检查uPnP是否可用
         if uPnP:
