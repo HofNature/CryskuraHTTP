@@ -34,12 +34,12 @@ class Route:
         
 
 class BaseService:
-    def __init__(self, route:list, auth_func=None):
-        for r in route:
+    def __init__(self, routes:list, auth_func=None):
+        for r in routes:
             if not isinstance(r, Route):
                 raise ValueError(f"Route {r} is not a valid route.")
         self.auth_func = auth_func
-        self.route = route
+        self.routes = routes
 
     def auth_verify(self, request:Handler, path:list,args:dict,operation:str):
         if self.auth_func is not None:
