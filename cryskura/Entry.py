@@ -176,7 +176,8 @@ def main():
         args.path = os.getcwd()
     if args.webMode:
         if args.allowResume:
-            raise ValueError("Web mode does not support resume download.")
+            # raise ValueError("Web mode does not support resume download.")
+            print("Web mode does not support resume download, resume download is disabled.")
         if args.allowUpload:
             raise ValueError("Web mode does not support file upload.")
         if lanuch:
