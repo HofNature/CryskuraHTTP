@@ -2,6 +2,7 @@ from . import BaseService, Route
 from .. import Handler
 import os
 import json
+import random
 from http import HTTPStatus
 from ..Pages import Directory_Page,Cryskura_Icon
 from urllib.parse import quote
@@ -51,27 +52,61 @@ class FileService(BaseService):
             return
         if self.allowResume and 'Range' in request.headers and os.path.isfile(real_path):
             range_header = request.headers["Range"]
-            range_h=range_header.strip("bytes=").split("-")
-            start=int(range_h[0])
+            range_h = range_header.strip("bytes=").split(",")
             file_size = os.path.getsize(real_path)
-            if range_h[1]!="":
-                end = min(int(range_h[1]), file_size - 1)
+            ranges = []
+            for r in range_h:
+                if '-' in r:
+                    start, end = r.split('-')
+                    if start == '':
+                        start = file_size - int(end)
+                        end = file_size - 1
+                    elif end == '':
+                        end = file_size - 1
+                    else:
+                        start = int(start)
+                        end = min(int(end), file_size - 1)
+                else:
+                    start = int(r)
+                    end = file_size - 1
+                ranges.append((start, end))
+
+            if len(ranges) == 1:
+                start, end = ranges[0]
+                length = end - start + 1
+                request.send_response(HTTPStatus.PARTIAL_CONTENT)
+                request.send_header("Content-Range", f"bytes {start}-{end}/{file_size}")
+                request.send_header("Content-Length", length)
+                request.send_header("Accept-Ranges", "bytes")
+                request.send_header("Content-Type", request.guess_type(request.path))
+                request.end_headers()
+                with open(real_path, 'rb') as f:
+                    f.seek(start)
+                    chunk_size = 8192
+                    while length > 0:
+                        chunk = f.read(min(chunk_size, length))
+                        request.wfile.write(chunk)
+                        length -= len(chunk)
             else:
-                end = file_size - 1
-            length = end - start + 1
-            request.send_response(HTTPStatus.PARTIAL_CONTENT)
-            request.send_header("Content-Range", f"bytes {start}-{end}/{file_size}")
-            request.send_header("Content-Length", length)
-            request.send_header("Accept-Ranges", "bytes")
-            request.send_header("Content-Type", request.guess_type(request.path))
-            request.end_headers()
-            with open(real_path, 'rb') as f:
-                f.seek(start)
-                chunk_size = 8192
-                while length > 0:
-                    chunk = f.read(min(chunk_size, length))
-                    request.wfile.write(chunk)
-                    length -= len(chunk)
+                boundary = "CRYSKURA_BOUNDARY_"+str(random.randint(int(1e10),int(1e11)-1))
+                request.send_response(HTTPStatus.PARTIAL_CONTENT)
+                request.send_header("Content-Type", f"multipart/byteranges; boundary={boundary}")
+                request.end_headers()
+                with open(real_path, 'rb') as f:
+                    for start, end in ranges:
+                        length = end - start + 1
+                        request.wfile.write(f"--{boundary}\r\n".encode())
+                        request.wfile.write(f"Content-Type: {request.guess_type(request.path)}\r\n".encode())
+                        request.wfile.write(f"Content-Range: bytes {start}-{end}/{file_size}\r\n".encode())
+                        request.wfile.write("\r\n".encode())
+                        f.seek(start)
+                        chunk_size = 8192
+                        while length > 0:
+                            chunk = f.read(min(chunk_size, length))
+                            request.wfile.write(chunk)
+                            length -= len(chunk)
+                        request.wfile.write("\r\n".encode())
+                request.wfile.write(f"--{boundary}--\r\n".encode())
         elif os.path.isdir(real_path):
             request.send_response(HTTPStatus.OK)
             request.send_header("Content-Type", "text/html")
@@ -127,12 +162,14 @@ class FileService(BaseService):
             length = int(request.headers['Content-Length'])
         else:
             length = 0
-        if length>0:
-            split_length = 1024*1024 # 1MB
+        if length > 0:
+            split_length = 1024 * 1024  # 1MB
             first_part = request.rfile.read(min(length, split_length))
-            boundary = first_part.split(b'\r\n')[0]+b'\r\n'
+            content_type = request.headers.get('Content-Type', '')
+            boundary = content_type.split('boundary=')[-1].encode()
+            boundary = b'--' + boundary + b'\r\n'
             head_part = first_part.split(boundary)
-            file_start = head_part[1].find(b'\r\n\r\n')+4
+            file_start = head_part[1].find(b'\r\n\r\n') + 4
             fileinfo = head_part[1][:file_start].decode('utf-8')
             filename = fileinfo.split("filename=")[1].split('"')[1]
             if filename == "":
