@@ -62,6 +62,7 @@ class FileService(BaseService):
                         start = file_size - int(end)
                         end = file_size - 1
                     elif end == '':
+                        start = int(start)
                         end = file_size - 1
                     else:
                         start = int(start)
