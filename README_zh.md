@@ -154,12 +154,30 @@ rs = RedirectService("/Redirect", "https://www.google.com")
 ps = PageService(r"/path/to/html", "/")
 
 # 定义 API 函数
-def APIFunc(request, path, args, method):
-    print(f"API {method} {path} {args}")
-    request.send_response(200)
-    request.send_header("Content-Type", "text/plain")
-    request.end_headers()
-    request.wfile.write(b"API Call")
+def APIFunc(request, path, args, headers, content, method):
+    """
+    用于处理 API 请求的示例函数。
+
+    参数：
+    - request：HTTP 请求对象。
+    - path：API 端点之后的请求 URL 子路径。
+    - args：URL 中的查询参数，字典形式。
+    - headers：请求头，字典形式。
+    - content：请求的主体内容，字节类型。
+    - method：使用的 HTTP 方法（例如 "GET"、"POST"）。
+
+    返回：
+    - code：整数类型的 HTTP 状态码（例如 200 表示成功）。
+    - response_headers：要包含在响应中的头信息，字典形式。
+    - response_content：响应的主体内容，字节类型。
+
+    """
+    # 为演示目的，我们将简单返回一个 200 OK 状态和一个纯文本消息。
+    code = 200
+    response_headers = {"Content-Type": "text/plain"}
+    response_content = b"API 调用"
+
+    return code, response_headers, response_content
 
 # 创建 API 服务
 api = APIService("/API", func=APIFunc)

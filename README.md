@@ -153,13 +153,30 @@ fs=FileService(r"/path/to/file","/Files",allowResume=True,allowUpload=True)
 rs=RedirectService("/Redirect","https://www.google.com")
 ps=PageService(r"/path/to/html","/")
 
-# Define API function
-def APIFunc(request, path, args, method):
+# Define the API function
+def APIFunc(request, path, args, headers, content, method):
+    """
+    A sample API function for handling API requests.
+
+    Parameters:
+    - request: The HTTP request object.
+    - path: The sub-path of the request URL after the API endpoint.
+    - args: The query parameters from the URL as a dictionary.
+    - headers: The headers from the request as a dictionary.
+    - content: The body content of the request as bytes.
+    - method: The HTTP method used (e.g., "GET", "POST").
+
+    Returns:
+    - code: An integer HTTP status code (e.g., 200 for success).
+    - response_headers: A dictionary of headers to include in the response.
+    - response_content: The body content to send in the response as bytes.
+    """
     print(f"API {method} {path} {args}")
-    request.send_response(200)
-    request.send_header("Content-Type", "text/plain")
-    request.end_headers()
-    request.wfile.write(b"API Call")
+    # Process the request and generate a response
+    code = 200  # HTTP status code
+    response_headers = {"Content-Type": "text/plain"}  # Response headers
+    response_content = b"API Call"  # Response body content
+    return code, response_headers, response_content
 
 # Create API service
 api=APIService("/API",func=APIFunc)

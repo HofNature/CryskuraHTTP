@@ -4,12 +4,17 @@ from os import path
 this_directory = path.abspath(path.dirname(__file__))
 with open(path.join(this_directory, 'README.md'), encoding='utf-8') as f:
     long_description = f.read()
+with open(path.join(this_directory, 'README_zh.md'), encoding='utf-8') as f:
+    long_description_zh = f.read()
 long_description = long_description.replace("README: [English](README.md) | [中文](README_zh.md)", "")
 long_description = long_description.replace("CryskuraHTTP.png","https://github.com/HofNature/CryskuraHTTP/raw/main/CryskuraHTTP.png")
+long_description_zh = long_description_zh.replace("帮助文档: [English](README.md) | [中文](README_zh.md)", "")
+long_description_zh = long_description_zh.replace("CryskuraHTTP.png","https://github.com/HofNature/CryskuraHTTP/raw/main/CryskuraHTTP.png")
+long_description += long_description_zh
 
 setup(
     name="cryskura",
-    version="1.0-beta.3",
+    version="1.0-beta.4",
     author="HofNature",
     description="A straightforward Python package that functions as an HTTP(s) server",
     long_description=long_description,

@@ -42,13 +42,18 @@ class HTTPRequestHandler(SimpleHTTPRequestHandler):
         for service in self.services:
             for route in service.routes:
                 if route.match(path,operation):
-                    if operation=="GET":
-                        service.handle_GET(self,path,args)
-                    elif operation=="POST":
-                        service.handle_POST(self,path,args)
-                    elif operation=="HEAD":
-                        service.handle_HEAD(self,path,args)
-                    return
+                    try:
+                        if operation=="GET":
+                            service.handle_GET(self,path,args)
+                        elif operation=="POST":
+                            service.handle_POST(self,path,args)
+                        elif operation=="HEAD":
+                            service.handle_HEAD(self,path,args)
+                        return
+                    except Exception as e:
+                        print(f"Error in {service.remote_path} {operation} handler: {e}")
+                        self.errsvc.handle(self,path,args,operation,HTTPStatus.INTERNAL_SERVER_ERROR)
+                        return
         self.errsvc.handle(self,path,args,operation,HTTPStatus.NOT_FOUND)
 
     def do_GET(self):
