@@ -94,7 +94,10 @@ class HTTPServer:
         self.server = ThreadingHTTPServer((self.interface, self.port), handler)
         if self.certfile is not None:
             ssl_ctx = ssl.create_default_context(ssl.Purpose.CLIENT_AUTH)
-            ssl_ctx.load_cert_chain(certfile=self.certfile)
+            try:
+                ssl_ctx.load_cert_chain(certfile=self.certfile)
+            except Exception as e:
+                raise ValueError(f"Error loading certificate: {e}\nPlease provide a valid certificate file.\nOnly PEM file with both certificate and private key is supported.")
             self.server.socket = ssl_ctx.wrap_socket(self.server.socket, server_side=True)
         print(f"Server started at {self.interface}:{self.port}")
         if self.uPnP is not None:

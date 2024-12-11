@@ -41,7 +41,7 @@ def right_click_menu_check():
         pass
     return winreg,False
 
-def add_to_right_click_menu(interface:str="0.0.0.0", port:int=8080, certfile=None, forcePort:bool=False, name=None, http_to_https=None, allowResume=False, browser=False, uPnP=False,custome_name=False):
+def add_to_right_click_menu(interface:str="0.0.0.0", port:int=8080, certfile=None, forcePort:bool=False, name=None, http_to_https=None, allowResume=False, browser=False, uPnP=False,custome_name=False,browserAddress=None):
     winreg,exist = right_click_menu_check()
     if exist:
         print("CryskuraHTTP is already in the right-click menu.")
@@ -58,6 +58,8 @@ def add_to_right_click_menu(interface:str="0.0.0.0", port:int=8080, certfile=Non
         args += " -r"
     if browser:
         args += " -b"
+    if browserAddress is not None:
+        args += f' -ba "{browserAddress}"'
     if uPnP:
         args += " -u"
     args_web = args + " -w"
@@ -152,6 +154,7 @@ def main():
     parser.add_argument("-w", "--webMode", action="store_true", help="Enable web mode. Which means only files can be accessed, not directories.")
     parser.add_argument("-r", "--allowResume", action="store_true", help="Allow resume download.")
     parser.add_argument("-b", "--browser", action="store_true", help="Open the browser after starting the server.")
+    parser.add_argument("-ba", "--browserAddress", type=str, default=None, help="The address to open in the browser.")
     parser.add_argument("-t", "--allowUpload", action="store_true", help="Allow file upload.")
     parser.add_argument("-u", "--uPnP", action="store_true", help="Enable uPnP port forwarding.")
     parser.add_argument("-ar", "--addRightClick", action="store_true", help="Add to right-click menu.")
@@ -202,7 +205,13 @@ def main():
     if lanuch:
         server = HTTPServer(interface=args.interface, port=args.port, services=services, server_name=args.name, forcePort=args.forcePort, certfile=args.certfile, uPnP=args.uPnP)
         if args.browser:
-            if args.certfile is not None:
+            if args.browserAddress is not None:
+                # 判断只是域名还是完整的URL
+                if args.browserAddress.startswith("http://") or args.browserAddress.startswith("https://"):
+                    webbrowser.open(args.browserAddress)
+                else:
+                    webbrowser.open("http://" if args.certfile is None else "https://"+args.browserAddress)
+            elif args.certfile is not None:
                 if args.interface == "0.0.0.0" or args.interface == "::1":
                     webbrowser.open(f"https://localhost:{args.port}")
                 else:
@@ -214,7 +223,7 @@ def main():
                     webbrowser.open(f"http://{args.interface}:{args.port}")
         server.start(threaded=False)
     elif args.addRightClick:
-        add_to_right_click_menu(args.interface, args.port, args.certfile, args.forcePort, args.name, args.http_to_https, args.allowResume, args.browser, args.uPnP,custome_name)
+        add_to_right_click_menu(args.interface, args.port, args.certfile, args.forcePort, args.name, args.http_to_https, args.allowResume, args.browser, args.uPnP,custome_name,args.browserAddress)
     elif args.removeRightClick:
         remove_from_right_click_menu()
 

@@ -125,6 +125,7 @@ This will show the available options:
 - `-u, --uPnP`: Enable uPnP port forwarding.
 - `-v, --version`: Show program's version number and exit.
 - `-b, --browser`: Open the browser after starting the server.
+- `-ba, --browserAddress`: The address to open in the browser.
 - `-w, --webMode`: Enable web mode, which means only files can be accessed, not directories.
 - `-f, --forcePort`: Force to use the specified port even if it is already in use.
 - `-t, --allowUpload`: Allow file upload.

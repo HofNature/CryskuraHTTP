@@ -125,6 +125,7 @@ cryskura --help
 - `-u, --uPnP`：启用 uPnP 端口转发。
 - `-v, --version`：显示程序的版本号并退出。
 - `-b, --browser`：启动服务器后打开浏览器。
+- `-ba, --browserAddress`：浏览器打开的地址。
 - `-w, --webMode`：启用 Web 模式，这意味着只能访问文件，不能访问目录。
 - `-f, --forcePort`：强制使用指定端口，即使该端口已被占用。
 - `-t, --allowUpload`：允许文件上传。
