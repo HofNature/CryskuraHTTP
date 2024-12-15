@@ -2,7 +2,10 @@ import os
 import sys
 import ctypes
 import locale
-import webbrowser
+try:
+    import webbrowser
+except ImportError:
+    webbrowser = None
 from cryskura import __version__
 from .Server import HTTPServer
 from .Services import FileService, PageService,RedirectService
@@ -205,7 +208,9 @@ def main():
     if lanuch:
         server = HTTPServer(interface=args.interface, port=args.port, services=services, server_name=args.name, forcePort=args.forcePort, certfile=args.certfile, uPnP=args.uPnP)
         if args.browser:
-            if args.browserAddress is not None:
+            if webbrowser is None:
+                raise ImportError("The webbrowser module is not available.")
+            elif args.browserAddress is not None:
                 # 判断只是域名还是完整的URL
                 if args.browserAddress.startswith("http://") or args.browserAddress.startswith("https://"):
                     webbrowser.open(args.browserAddress)
