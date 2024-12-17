@@ -208,26 +208,33 @@ class FileService(BaseService):
                 #         this_part = next_part     
             this_part = head_part[1][file_start:]
             length -= len(boundary)+4
-            if length <= split_length:
-                with open(local_filepaths, 'wb') as f:
-                    f.write(head_part[1][file_start:-len(boundary)-4])
-            else:
-                length -= split_length
-                with open(local_filepaths, 'wb') as f:
-                    f.write(this_part)
-                    while length > 0:
-                        this_part = request.rfile.read(min(length, split_length))
-                        length -= min(length, split_length)
-                        if this_part == b'':
-                            request.errsvc.handle(request, path, args, "POST", HTTPStatus.BAD_REQUEST)
-                            return
+            try:
+                if length <= split_length:
+                    with open(local_filepaths, 'wb') as f:
+                        f.write(head_part[1][file_start:-len(boundary)-4])
+                else:
+                    length -= split_length
+                    with open(local_filepaths, 'wb') as f:
                         f.write(this_part)
-            request.send_response(HTTPStatus.CREATED)
-            if request.path[-1]!="/":
-                request.send_header("Location", request.path+"/"+quote(filename))
-            else:
-                request.send_header("Location", request.path+quote(filename))
-            request.end_headers()
+                        while length > 0:
+                            this_part = request.rfile.read(min(length, split_length))
+                            length -= min(length, split_length)
+                            if this_part == b'':
+                                request.errsvc.handle(request, path, args, "POST", HTTPStatus.BAD_REQUEST)
+                                os.remove(local_filepaths)
+                                return
+                            f.write(this_part)
+                request.send_response(HTTPStatus.CREATED)
+                if request.path[-1]!="/":
+                    request.send_header("Location", request.path+"/"+quote(filename))
+                else:
+                    request.send_header("Location", request.path+quote(filename))
+                request.end_headers()
+            except Exception as e:
+                if os.path.exists(local_filepaths):
+                    os.remove(local_filepaths)
+                request.errsvc.handle(request, path, args, "POST", HTTPStatus.INTERNAL_SERVER_ERROR)
+                return
         else:
             request.errsvc.handle(request, path, args, "POST", HTTPStatus.LENGTH_REQUIRED)
             return

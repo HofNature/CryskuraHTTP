@@ -22,7 +22,8 @@
             let maxFileSize = 1024 * 1024 * 64;// 64MB
             let backButton = document.getElementById("back-button");// 返回上一级
             let lang = navigator.language;
-            let isEnglish = (lang && !lang.includes("zh"));
+            //let isEnglish = (lang && !lang.includes("zh"));
+            let isEnglish = (lang && lang.indexOf("zh") == -1);
 
             if (allowUpload) {
                 backButton.innerText = isEnglish ? "Upload" : "上传文件";
@@ -53,16 +54,86 @@
                             let formData=new FormData();
                             formData.append("file",file);
                             document.querySelector("html").style.cursor="wait";
+                            let reader=file.stream().getReader();
+                            let total=0;
+                            let hint=document.getElementById("warning-text");
+                            let but=document.getElementById("input-confirm");
+                            let mask=document.querySelector(".mask");
+                            if (isEnglish){
+                                hint.innerText="Uploading";
+                                but.innerText="Cancel";
+                            }
+                            else{
+                                hint.innerText="正在上传";
+                                but.innerText="取消";
+                            }
+                            const controller = new AbortController();
+                            const signal = controller.signal;
+
+                            but.onclick=function(){
+                                reader.cancel();
+                                controller.abort();
+                                document.querySelector("html").style.cursor="auto";
+                                mask.style.opacity=0;
+                                setTimeout(function(){
+                                    mask.style.display="none";
+                                },500);
+                            }
+                            mask.style.display="block";
+                            mask.style.opacity=1;
+                            reader.read().then(function processText({done,value}){
+                                if (done){
+                                    return;
+                                }
+                                total+=value.length;
+                                let percent=total/file.size*100;
+                                if (isEnglish){
+                                    hint.innerText="Uploading "+percent.toFixed(2)+"%";
+                                }
+                                else{
+                                    hint.innerText="正在上传 "+percent.toFixed(2)+"%";
+                                }
+                                reader.read().then(processText);
+                            });
                             fetch(window.location.pathname,{
                                 method:"POST",
-                                body:formData
+                                body:formData,
+                                signal: signal
                             }).then(function(response){
                                 document.querySelector("html").style.cursor="auto";
                                 if(response.ok){
-                                    window.location.reload();
+                                    //window.location.reload();
+                                    if (isEnglish){
+                                        //alert("Upload successful");
+                                        hint.innerText="Upload successful";
+                                        but.innerText="Close";
+                                    }
+                                    else{
+                                        //alert("上传成功");
+                                        hint.innerText="上传成功";
+                                        but.innerText="关闭";
+                                    }
+                                    but.onclick=function(){
+                                        window.location.reload();
+                                    }
                                 }
                                 else{
-                                    alert("上传失败");
+                                    if (isEnglish){
+                                        alert("Upload failed");
+                                        hint.innerText="Upload failed";
+                                        but.innerText="Close";
+                                    }
+                                    else{
+                                        alert("上传失败");
+                                        hint.innerText="上传失败";
+                                        but.innerText="关闭";
+                                    }
+                                    but.onclick=function(){
+                                        mask.style.opacity=0;
+                                        setTimeout(function(){
+                                            mask.style.display="none";
+                                        },500);
+                                    }
                                 }
                             });
                         }
@@ -118,7 +189,8 @@
             subfolders.forEach(function (subfolder) {
                 let item = document.createElement("div");
                 item.classList.add("item");
-                item.innerHTML = `<span class="icon-folder"></span><span class="item-name">${subfolder}</span>`;
+                //item.innerHTML = `<span class="icon-folder"></span><span class="item-name">${subfolder}</span>`;
+                item.innerHTML = '<span class="icon-folder"></span><span class="item-name">' + document.createTextNode(subfolder).textContent + '</span>';
                 item.addEventListener("click", function () {
                     if (window.location.pathname[window.location.pathname.length - 1] == "/") {
                         window.location.href = '//' + window.location.host + window.location.pathname + subfolder;
@@ -133,7 +205,8 @@
             files.forEach(function (file) {
                 let item = document.createElement("div");
                 item.classList.add("item");
-                item.innerHTML = `<span class="icon-file"></span><span class="item-name">${file}</span>`;
+                //item.innerHTML = `<span class="icon-file"></span><span class="item-name">${file}</span>`;
+                item.innerHTML = '<span class="icon-file"></span><span class="item-name">' + document.createTextNode(file).textContent + '</span>';
                 item.addEventListener("click", function () {
                     if (window.location.pathname[window.location.pathname.length - 1] == "/") {
                         window.location.href = '//' + window.location.host + window.location.pathname + file;
@@ -280,6 +353,57 @@
             opacity: 0.25;
             position: absolute;
         }
+
+        .mask {
+            display: none;
+            opacity: 0;
+            transition: 0.5s;
+            position: fixed;
+            top: 0;
+            left: 0;
+            right: 0;
+            bottom: 0;
+            background: #0009;
+            z-index: 100;
+        }
+        .mask-content {
+            position: absolute;
+            width: 260px;
+            height: 120px;
+            top: calc(50% - 60px);
+            left: calc(50% - 100px);
+            background: #fff;
+            border: 2px solid #000;
+            border-radius: 8px;
+            display: flex;
+            flex-direction: column;
+        }
+        #warning-text {
+            text-align: center;
+            font-size: 24px;
+            flex-grow: 1;
+            padding-top: 16px;
+        }
+        .flex-span {
+            flex-grow: 1;
+        }
+        .alert-bar {
+            display: flex;
+            flex-direction: row;
+            margin: 16px 32px;
+        }
+        button#input-confirm {
+            border: #0009 3px solid;
+            border-radius: 100px;
+            padding: 6px 16px;
+            font-size: 16px;
+            background: #fff;
+            transition: 1s;
+        }
+        button#input-confirm:hover {
+            background: #0001;
+            cursor: pointer;
+        }
     </style>
     <!--
         禁止缓存
@@ -305,6 +429,18 @@
             </div>
             <div class="files">
 
+            </div>
+        </div>
+    </div>
+    <div class="mask">
+        <div class="mask-content">
+            <div id="warning-text">
+                <span>出现错误</span>
+            </div>
+            <div class="alert-bar">
+                <div class="flex-span"></div>
+                <button id="input-confirm">返回首页</button>
+                <div class="flex-span"></div>
             </div>
         </div>
     </div>
