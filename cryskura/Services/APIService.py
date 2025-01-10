@@ -8,6 +8,8 @@ class APIService(BaseService):
         ]
         self.func = func
         self.length_limit = length_limit
+        for method in methods:
+            setattr(self, f"handle_{method}", lambda request, path, args, method=method: self.handle_API(request, path, args, method))
         super().__init__(self.routes, auth_func)
         self.remote_path = self.routes[0].path
     
@@ -24,11 +26,11 @@ class APIService(BaseService):
         request.end_headers()
         request.wfile.write(content)
 
-    def handle_GET(self, request:Handler, path:list,args:dict):
-        self.handle_API(request, path, args, "GET")
+    # def handle_GET(self, request:Handler, path:list,args:dict):
+    #     self.handle_API(request, path, args, "GET")
     
-    def handle_HEAD(self, request:Handler, path:list,args:dict):
-        self.handle_API(request, path, args, "HEAD")
+    # def handle_HEAD(self, request:Handler, path:list,args:dict):
+    #     self.handle_API(request, path, args, "HEAD")
 
-    def handle_POST(self, request:Handler, path:list,args:dict):
-        self.handle_API(request, path, args, "POST")
+    # def handle_POST(self, request:Handler, path:list,args:dict):
+    #     self.handle_API(request, path, args, "POST")

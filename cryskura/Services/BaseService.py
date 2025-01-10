@@ -13,24 +13,27 @@ class Route:
             else:
                 raise ValueError(f"Path {path} is not a valid path.")
         self.path = path    
-        for method in methods:
-            if method not in ["GET","POST","HEAD"]:
-                raise ValueError(f"Method {method} is not a valid method.")
+        # for method in methods:
+        #     if method not in ["GET","POST","HEAD"]:
+        #         raise ValueError(f"Method {method} is not a valid method.")
         self.methods = methods
         if type not in ["prefix","exact"]:
             raise ValueError(f"Type {type} is not a valid type.")
         self.type = type
 
     def match(self, path:list, method:str):
+        path_exists = False
         if self.type=="exact":
             if path==self.path:
+                path_exists = True
                 if method in self.methods:
-                    return True
+                    return True,True
         elif self.type=="prefix":
             if path[:len(self.path)]==self.path:
+                path_exists = True
                 if method in self.methods:
-                    return True
-        return False
+                    return True,True
+        return False,path_exists
         
 
 class BaseService:
