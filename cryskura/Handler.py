@@ -1,4 +1,7 @@
-import os
+try:
+    import ssl
+except ImportError:
+    ssl = None
 from . import __version__
 from urllib.parse import unquote
 from http import HTTPStatus
@@ -83,13 +86,16 @@ class HTTPRequestHandler(SimpleHTTPRequestHandler):
                     if can_handle:
                         try:
                             if not hasattr(service, "handle_"+self.command):
-                                raise ValueError(f"{service.remote_path} does not have a {self.command} handler, but a route for it exists.")
+                                raise ValueError(f"Service to handle {path} does not have a {self.command} handler, but a route for it exists.")
                             method = getattr(service, "handle_"+self.command)
                             method(self,path,args)
                             handled = True
                             break
                         except Exception as e:
-                            print(f"Error in {service.remote_path} {self.command} handler: {e}")
+                            if isinstance(e,ConnectionAbortedError) or isinstance(e,ConnectionResetError) or isinstance(e,ssl.SSLEOFError):
+                                print(f"Client disconnected while handling {self.command} request for /{'/'.join(path)}: {e}")
+                                return
+                            print(f"Error while handling {self.command} request for /{'/'.join(path)}: {e}")
                             self.errsvc.handle(self,path,args,self.command,HTTPStatus.INTERNAL_SERVER_ERROR)
                             handled = True
                             break

@@ -1,5 +1,9 @@
 import os
-import ssl
+try:
+    import ssl
+except ImportError:
+    print("Warning: SSL module not found. HTTPS is not supported.")
+    ssl = None
 import socket
 import psutil
 import threading
@@ -8,19 +12,21 @@ from .uPnP import uPnPClient
 from .Handler import HTTPRequestHandler as Handler
 from .Services import BaseService, FileService, ErrorService
 
+
 class HTTPServer:
-    def __init__(self, interface:str="127.0.0.1", port:int=8080, services=None, error_service=None, server_name:str="CryskuraHTTP/1.0", forcePort:bool=False,certfile=None,uPnP=False):
+    def __init__(self, interface: str = "127.0.0.1", port: int = 8080, services=None, error_service=None, server_name: str = "CryskuraHTTP/1.0", forcePort: bool = False, certfile=None, uPnP=False):
         # 获取系统所有网卡的IP地址
         addrs = psutil.net_if_addrs()
         available_devices = ["Any Available Interface"]
         available_interfaces = ["0.0.0.0"]
         for device, addrs in addrs.items():
             for addr in addrs:
-                if addr.family in [socket.AF_INET,socket.AF_INET6]:
+                if addr.family in [socket.AF_INET, socket.AF_INET6]:
                     available_interfaces.append(addr.address)
                     available_devices.append(device)
         if interface not in available_interfaces:
-            raise ValueError(f"Interface {interface} not found. \nAvailable interfaces: \n" + "\n".join([f"{device}: {addr}" for device, addr in zip(available_devices,available_interfaces)]))
+            raise ValueError(f"Interface {interface} not found. \nAvailable interfaces: \n" + "\n".join(
+                [f"{device}: {addr}" for device, addr in zip(available_devices, available_interfaces)]))
         self.interface = interface
 
         # 检查端口是否被占用
@@ -30,12 +36,13 @@ class HTTPServer:
                 if conn.laddr.port not in used_ports and conn.laddr.ip == self.interface:
                     used_ports.append(conn.laddr.port)
         except Exception as e:
-            print(f"Error checking port availability: {e} , skipping check")    
-            used_ports = [] 
+            print(f"Error checking port availability: {e} , skipping check")
+            used_ports = []
 
         if port in used_ports:
             if forcePort:
-                print(f"Port {port} is already in use. Forcing to use port {port}.")
+                print(
+                    f"Port {port} is already in use. Forcing to use port {port}.")
             else:
                 raise ValueError(f"Port {port} is already in use.")
 
@@ -47,7 +54,6 @@ class HTTPServer:
                 self.uPnP = None
         else:
             self.uPnP = None
-            
 
         # Linux下端口小于1024需要root权限
         if os.name == "posix" and port < 1024 and os.geteuid() != 0:
@@ -58,15 +64,17 @@ class HTTPServer:
 
         # 检查服务是否合法
         if services is None:
-            self.services = [FileService(os.fspath(os.getcwd()), "/",server_name=server_name)]
+            self.services = [FileService(
+                os.fspath(os.getcwd()), "/", server_name=server_name)]
         else:
             self.services = []
             for service in services:
                 if isinstance(service, BaseService):
                     self.services.append(service)
                 else:
-                    raise ValueError(f"Service {service} is not a valid service.")
-                
+                    raise ValueError(
+                        f"Service {service} is not a valid service.")
+
         # 检查错误服务是否合法
         if error_service is None:
             self.error_service = ErrorService(server_name)
@@ -74,8 +82,9 @@ class HTTPServer:
             if isinstance(error_service, BaseService):
                 self.error_service = error_service
             else:
-                raise ValueError(f"Service {error_service} is not a valid service.") 
-            
+                raise ValueError(
+                    f"Service {error_service} is not a valid service.")
+
         # 检查证书是否合法
         if certfile is not None:
             if not os.path.exists(certfile):
@@ -83,25 +92,29 @@ class HTTPServer:
             self.certfile = certfile
         else:
             self.certfile = None
-        
+
         self.server_name = server_name
         self.server = None
         self.thread = None
-        
-    def start(self, threaded:bool=True):
+
+    def start(self, threaded: bool = True):
         # 启动HTTP服务器
-        handler=lambda *args, **kwargs: Handler(*args, services=self.services, errsvc=self.error_service, **kwargs)
+        handler = lambda *args, **kwargs: Handler(
+            *args, services=self.services, errsvc=self.error_service, **kwargs)
         self.server = ThreadingHTTPServer((self.interface, self.port), handler)
-        if self.certfile is not None:
+        if self.certfile is not None and ssl is not None:
             ssl_ctx = ssl.create_default_context(ssl.Purpose.CLIENT_AUTH)
             try:
                 ssl_ctx.load_cert_chain(certfile=self.certfile)
             except Exception as e:
-                raise ValueError(f"Error loading certificate: {e}\nPlease provide a valid certificate file.\nOnly PEM file with both certificate and private key is supported.")
-            self.server.socket = ssl_ctx.wrap_socket(self.server.socket, server_side=True)
+                raise ValueError(
+                    f"Error loading certificate: {e}\nPlease provide a valid certificate file.\nOnly PEM file with both certificate and private key is supported.")
+            self.server.socket = ssl_ctx.wrap_socket(
+                self.server.socket, server_side=True)
         print(f"Server started at {self.interface}:{self.port}")
         if self.uPnP is not None:
-            res,map=self.uPnP.add_port_mapping(self.port,self.port,"TCP",self.server_name)
+            res, map = self.uPnP.add_port_mapping(
+                self.port, self.port, "TCP", self.server_name)
             if res:
                 for mapping in map:
                     print(f"Service is available at {mapping[0]}:{mapping[1]}")
@@ -125,7 +138,7 @@ class HTTPServer:
             if self.uPnP is not None:
                 self.uPnP.remove_port_mapping()
             raise e
-            
+
     def stop(self):
         # 停止HTTP服务器
         if self.server is not None:

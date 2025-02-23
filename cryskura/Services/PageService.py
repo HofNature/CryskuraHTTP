@@ -42,8 +42,10 @@ class PageService(BaseService):
         if f:
             try:
                 request.copyfile(f, request.wfile)
-            finally:
+            except Exception as e:
                 f.close()
+                raise e
+            f.close()
     
     def handle_HEAD(self, request:Handler, path:list,args:dict):
         if not self.auth_verify(request, path, args, "HEAD"):

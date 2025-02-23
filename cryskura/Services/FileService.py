@@ -130,8 +130,10 @@ class FileService(BaseService):
             if f:
                 try:
                     request.copyfile(f, request.wfile)
-                finally:
+                except Exception as e:
                     f.close()
+                    raise e
+                f.close()
     
     def handle_HEAD(self, request:Handler, path:list,args:dict):
         if not self.auth_verify(request, path, args, "HEAD"):
@@ -233,8 +235,11 @@ class FileService(BaseService):
             except Exception as e:
                 if os.path.exists(local_filepaths):
                     os.remove(local_filepaths)
-                request.errsvc.handle(request, path, args, "POST", HTTPStatus.INTERNAL_SERVER_ERROR)
-                return
+                if isinstance(e, ConnectionAbortedError) or isinstance(e, ConnectionResetError) or isinstance(e, ssl.SSLEOFError):
+                    raise e
+                else:
+                    request.errsvc.handle(request, path, args, "POST", HTTPStatus.INTERNAL_SERVER_ERROR)
+                    raise e
         else:
             request.errsvc.handle(request, path, args, "POST", HTTPStatus.LENGTH_REQUIRED)
             return
