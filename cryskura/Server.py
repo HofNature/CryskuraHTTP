@@ -101,6 +101,8 @@ class HTTPServer:
         # 启动HTTP服务器
         handler = lambda *args, **kwargs: Handler(
             *args, services=self.services, errsvc=self.error_service, **kwargs)
+        if ":" in self.interface:  # Check if the interface is an IPv6 address
+            ThreadingHTTPServer.address_family = socket.AF_INET6
         self.server = ThreadingHTTPServer((self.interface, self.port), handler)
         if self.certfile is not None and ssl is not None:
             ssl_ctx = ssl.create_default_context(ssl.Purpose.CLIENT_AUTH)
@@ -111,7 +113,10 @@ class HTTPServer:
                     f"Error loading certificate: {e}\nPlease provide a valid certificate file.\nOnly PEM file with both certificate and private key is supported.")
             self.server.socket = ssl_ctx.wrap_socket(
                 self.server.socket, server_side=True)
-        print(f"Server started at {self.interface}:{self.port}")
+        if ":" in self.interface:
+            print(f"Server started at [{self.interface}]:{self.port}")
+        else:
+            print(f"Server started at {self.interface}:{self.port}")
         if self.uPnP is not None:
             res, map = self.uPnP.add_port_mapping(
                 self.port, self.port, "TCP", self.server_name)

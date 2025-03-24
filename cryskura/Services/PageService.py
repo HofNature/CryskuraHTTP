@@ -4,9 +4,9 @@ import os
 from http import HTTPStatus
 
 class PageService(BaseService):
-    def __init__(self, local_path, remote_path,index_pages=("index.html", "index.htm"),auth_func=None):
+    def __init__(self, local_path, remote_path,index_pages=("index.html", "index.htm"),auth_func=None,host=None,port=None):
         self.routes = [
-            Route(remote_path, ["GET","HEAD"], "prefix"),
+            Route(remote_path, ["GET","HEAD"], "prefix",host,port),
         ]
         self.local_path = os.path.abspath(local_path)
         self.index_pages = index_pages

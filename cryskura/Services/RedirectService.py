@@ -4,9 +4,9 @@ import os
 from http import HTTPStatus
 
 class RedirectService(BaseService):
-    def __init__(self, remote_path,redirect_path,methods=["GET","HEAD","POST"],remote_type="prefix",redirect_type="prefix",auth_func=None,default_protocol="http"):
+    def __init__(self, remote_path,redirect_path,methods=["GET","HEAD","POST"],remote_type="prefix",redirect_type="prefix",auth_func=None,default_protocol="http",host=None,port=None):
         self.routes = [
-            Route(remote_path, methods, remote_type),
+            Route(remote_path, methods, remote_type,host,port),
         ]
         self.redirect_path = redirect_path
         if redirect_type not in ["prefix","exact"]:

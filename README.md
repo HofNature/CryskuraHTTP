@@ -152,7 +152,8 @@ from cryskura.Services import FileService,PageService,RedirectService,APIService
 # Create services
 fs=FileService(r"/path/to/file","/Files",allowResume=True,allowUpload=True)
 rs=RedirectService("/Redirect","https://www.google.com")
-ps=PageService(r"/path/to/html","/")
+ps1=PageService(r"/path/to/html/example.com","/",host="example.com")
+ps2=PageService(r"/path/to/html/default","/")
 
 # Define the API function
 def APIFunc(request, path, args, headers, content, method):
@@ -183,7 +184,7 @@ def APIFunc(request, path, args, headers, content, method):
 api=APIService("/API",func=APIFunc)
 
 # Start the server
-server=Server(services=[fs,rs,api,ps],certfile="/path/to/cert.pem",uPnP=True)
+server=Server(services=[fs,rs,api,ps1,ps2],certfile="/path/to/cert.pem",uPnP=True)
 server.start()
 ```
 
@@ -191,7 +192,8 @@ This will start the server with the following services:
 
 - FileService: Serves files from `/path/to/file` at the `/Files` endpoint, allowing resumable downloads and file uploads.
 - RedirectService: Redirects requests from `/Redirect` to `https://www.google.com`.
-- PageService: Serves web pages from `/path/to/html` at the root endpoint `/`.
+- PageService 1: Hosts web pages located in `/path/to/html/example.com` and serves them at the root endpoint `/` only when user requests with domain `example.com`.
+- PageService 2: Hosts default web pages located in `/path/to/html/default` and serves them at the root endpoint `/` for all other requests.
 - APIService: Handles API calls at the `/API` endpoint, printing request details and responding with a plain text message.
 
 And with the following settings:

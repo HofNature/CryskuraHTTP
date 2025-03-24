@@ -76,11 +76,41 @@ class HTTPRequestHandler(SimpleHTTPRequestHandler):
                 return
             
             path,args = self.split_Path()
+            host = self.headers.get('Host',None)
+
+            if host is None:
+                port = None
+            else:
+                try:
+                    if host.startswith('['):  # IPv6 address
+                        if ']' in host:
+                            host, _, port = host[1:].partition(']')
+                            if port.startswith(':'):
+                                port = port[1:]
+                            else:
+                                port = None
+                        else:
+                            host = None
+                            port = None
+                    else:  # IPv4 or hostname
+                        host, _, port = host.partition(':')
+                    if port:
+                        try:
+                            port = int(port)
+                        except ValueError:
+                            print("Invalid port number %r", port)
+                            port = None
+                            return
+                except Exception:
+                    print("Invalid host %r", host)
+                    host = None
+                    port = None
+
             path_exists = False
             handled = False
             for service in self.services:
                 for route in service.routes:
-                    can_handle,path_ok = route.match(path,self.command)
+                    can_handle,path_ok = route.match(path,self.command,host,port)
                     if path_ok:
                         path_exists = True
                     if can_handle:

@@ -2,7 +2,22 @@ from .. import Handler
 from http import HTTPStatus
 
 class Route:
-    def __init__(self, path, methods: list, type: str):
+    def __init__(self, path, methods: list, type: str, host = None, port = None):
+        if host is not None:
+            if isinstance(host, str):
+                host = [host]
+            for h in host:
+                if h is not None and not isinstance(h, str):
+                    raise ValueError(f"Host {h} is not a valid host.")
+        self.host = host
+        if port is not None:
+            if isinstance(port, int):
+                port = [port]
+            for p in port:
+                if p is not None and not isinstance(p, int):
+                    raise ValueError(f"Port {p} is not a valid port.")
+        self.port = port
+
         if not isinstance(path, list):
             if isinstance(path, str):
                 path=path.split("/")
@@ -21,8 +36,19 @@ class Route:
             raise ValueError(f"Type {type} is not a valid type.")
         self.type = type
 
-    def match(self, path:list, method:str):
+    def match(self, path:list, method:str, host=None, port=None):
         path_exists = False
+        if self.host is None:
+            host_match = True
+        else:
+            host_match =  host in self.host
+        if self.port is None:
+            port_match = True
+        else:
+            port_match = port in self.port
+        if not host_match or not port_match:
+            return False,False
+
         if self.type=="exact":
             if path==self.path:
                 path_exists = True

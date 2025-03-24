@@ -2,9 +2,9 @@ from . import BaseService, Route
 from .. import Handler
 
 class APIService(BaseService):
-    def __init__(self, remote_path, func:callable, methods=["GET","HEAD","POST"], type="prefix",auth_func=None,length_limit=1024*1024):
+    def __init__(self, remote_path, func:callable, methods=["GET","HEAD","POST"], type="prefix",auth_func=None,length_limit=1024*1024,host=None,port=None):
         self.routes = [
-            Route(remote_path, methods, type),
+            Route(remote_path, methods, type,host,port),
         ]
         self.func = func
         self.length_limit = length_limit

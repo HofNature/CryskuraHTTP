@@ -8,12 +8,12 @@ from ..Pages import Directory_Page,Cryskura_Icon
 from urllib.parse import quote
 
 class FileService(BaseService):
-    def __init__(self, local_path, remote_path, isFolder=True,allowResume=False,server_name="CryskuraHTTP",auth_func=None,allowUpload=False):
+    def __init__(self, local_path, remote_path, isFolder=True,allowResume=False,server_name="CryskuraHTTP",auth_func=None,allowUpload=False,host=None,port=None):
         methods = ["GET","HEAD"]
         if allowUpload:
             methods.append("POST")
         self.routes = [
-            Route(remote_path, methods, "prefix" if isFolder else "exact"),
+            Route(remote_path, methods, "prefix" if isFolder else "exact", host, port),
         ]
         self.allowUpload = allowUpload
         self.isFolder = isFolder

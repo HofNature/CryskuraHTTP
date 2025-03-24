@@ -152,7 +152,8 @@ from cryskura.Services import FileService, PageService, RedirectService, APIServ
 # 创建服务
 fs = FileService(r"/path/to/file", "/Files", allowResume=True, allowUpload=True)
 rs = RedirectService("/Redirect", "https://www.google.com")
-ps = PageService(r"/path/to/html", "/")
+ps1 = PageService(r"/path/to/html/example.com", "/", host="example.com")
+ps2 = PageService(r"/path/to/html/default", "/")
 
 # 定义 API 函数
 def APIFunc(request, path, args, headers, content, method):
@@ -171,20 +172,18 @@ def APIFunc(request, path, args, headers, content, method):
     - code：整数类型的 HTTP 状态码（例如 200 表示成功）。
     - response_headers：要包含在响应中的头信息，字典形式。
     - response_content：响应的主体内容，字节类型。
-
     """
     # 为演示目的，我们将简单返回一个 200 OK 状态和一个纯文本消息。
     code = 200
     response_headers = {"Content-Type": "text/plain"}
     response_content = b"API 调用"
-
     return code, response_headers, response_content
 
 # 创建 API 服务
 api = APIService("/API", func=APIFunc)
 
 # 启动服务器
-server = Server(services=[fs, rs, api, ps], certfile="/path/to/cert.pem", uPnP=True)
+server = Server(services=[fs, rs, api, ps1, ps2], certfile="/path/to/cert.pem", uPnP=True)
 server.start()
 ```
 
@@ -192,7 +191,8 @@ server.start()
 
 - FileService：在 `/Files` 端点提供 `/path/to/file` 的文件服务，允许续传下载和文件上传。
 - RedirectService：将 `/Redirect` 的请求重定向到 `https://www.google.com`。
-- PageService：在根端点 `/` 提供 `/path/to/html` 的网页服务。
+- PageService 1：在根端点 `/` 提供 `/path/to/html/example.com` 的网页服务，仅当用户请求的域名为 `example.com` 时生效。
+- PageService 2：在根端点 `/` 提供 `/path/to/html/default` 的默认网页服务，用于所有其他请求。
 - APIService：在 `/API` 端点处理 API 调用，打印请求详情并响应纯文本消息。
 
 以及以下设置：
