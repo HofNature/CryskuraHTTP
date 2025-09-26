@@ -14,11 +14,11 @@ long_description += long_description_zh
 
 setup(
     name="cryskura",
-    version="1.0-beta.11",
+    version="1.0-beta.12",
     author="HofNature",
     description="A straightforward Python package that functions as an HTTP(s) server",
     long_description=long_description,
-    long_description_content_type='text/markdown',    
+    long_description_content_type='text/markdown',
     packages=find_packages(),
     install_requires=["psutil"],
     extras_require={
