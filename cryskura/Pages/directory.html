@@ -54,8 +54,6 @@
                             let formData=new FormData();
                             formData.append("file",file);
                             document.querySelector("html").style.cursor="wait";
-                            let reader=file.stream().getReader();
-                            let total=0;
                             let hint=document.getElementById("warning-text");
                             let but=document.getElementById("input-confirm");
                             let mask=document.querySelector(".mask");
@@ -71,8 +69,8 @@
                             const signal = controller.signal;
 
                             but.onclick=function(){
-                                reader.cancel();
-                                controller.abort();
+                                // 取消上传
+                                if (xhr) xhr.abort();
                                 document.querySelector("html").style.cursor="auto";
                                 mask.style.opacity=0;
                                 setTimeout(function(){
@@ -81,43 +79,35 @@
                             }
                             mask.style.display="block";
                             mask.style.opacity=1;
-                            reader.read().then(function processText({done,value}){
-                                if (done){
-                                    return;
-                                }
-                                total+=value.length;
-                                let percent=total/file.size*100;
-                                if (isEnglish){
-                                    hint.innerText="Uploading "+percent.toFixed(2)+"%";
-                                }
-                                else{
-                                    hint.innerText="正在上传 "+percent.toFixed(2)+"%";
-                                }
-                                reader.read().then(processText);
-                            });
-                            fetch(window.location.pathname,{
-                                method:"POST",
-                                body:formData,
-                                signal: signal
-                            }).then(function(response){
-                                document.querySelector("html").style.cursor="auto";
-                                if(response.ok){
-                                    //window.location.reload();
+
+                            // 使用 XMLHttpRequest 以便获取上传进度
+                            let xhr = new XMLHttpRequest();
+                            xhr.open("POST", window.location.pathname, true);
+                            xhr.upload.onprogress = function(event) {
+                                if (event.lengthComputable) {
+                                    let percent = event.loaded / event.total * 100;
                                     if (isEnglish){
-                                        //alert("Upload successful");
+                                        hint.innerText = "Uploading " + percent.toFixed(2) + "%";
+                                    } else {
+                                        hint.innerText = "正在上传 " + percent.toFixed(2) + "%";
+                                    }
+                                }
+                            };
+                            xhr.onload = function() {
+                                document.querySelector("html").style.cursor="auto";
+                                if (xhr.status >= 200 && xhr.status < 300) {
+                                    if (isEnglish){
                                         hint.innerText="Upload successful";
                                         but.innerText="Close";
                                     }
                                     else{
-                                        //alert("上传成功");
                                         hint.innerText="上传成功";
                                         but.innerText="关闭";
                                     }
                                     but.onclick=function(){
                                         window.location.reload();
                                     }
-                                }
-                                else{
+                                } else {
                                     if (isEnglish){
                                         alert("Upload failed");
                                         hint.innerText="Upload failed";
@@ -135,7 +125,27 @@
                                         },500);
                                     }
                                 }
-                            });
+                            };
+                            xhr.onerror = function() {
+                                document.querySelector("html").style.cursor="auto";
+                                if (isEnglish){
+                                    alert("Upload failed");
+                                    hint.innerText="Upload failed";
+                                    but.innerText="Close";
+                                }
+                                else{
+                                    alert("上传失败");
+                                    hint.innerText="上传失败";
+                                    but.innerText="关闭";
+                                }
+                                but.onclick=function(){
+                                    mask.style.opacity=0;
+                                    setTimeout(function(){
+                                        mask.style.display="none";
+                                    },500);
+                                }
+                            };
+                            xhr.send(formData);
                         }
                     });
                     input.click();
@@ -371,7 +381,7 @@
             width: 260px;
             height: 120px;
             top: calc(50% - 60px);
-            left: calc(50% - 100px);
+            left: calc(50% - 130px);
             background: #fff;
             border: 2px solid #000;
             border-radius: 8px;
