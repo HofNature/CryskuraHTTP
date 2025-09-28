@@ -8,7 +8,14 @@ directory browsing, and file upload functionality.
 
 from typing import List, Dict, Tuple, Optional, Union
 import os
-import ssl
+
+# SSL模块导入处理，兼容不含ssl库的Python版本
+# SSL module import handling, compatible with Python versions without ssl library
+try:
+    import ssl
+except ImportError:
+    ssl = None  # type: ignore
+
 import json
 import random
 from http import HTTPStatus
@@ -386,8 +393,14 @@ class FileService(BaseService):
                                      content_length)
         except Exception as e:
             # 处理上传过程中的异常 | Handle exceptions during upload
-            if isinstance(e, (ConnectionAbortedError, ConnectionResetError,
-                              ssl.SSLEOFError)):
+            # 构建异常类型元组，兼容无SSL环境
+            # Build exception tuple, compatible with no SSL environment
+            ssl_exceptions = (ssl.SSLEOFError,) if ssl is not None else ()
+            connection_exceptions = (
+                ConnectionAbortedError, ConnectionResetError
+            ) + ssl_exceptions
+
+            if isinstance(e, connection_exceptions):
                 raise e
             else:
                 request.errsvc.handle(

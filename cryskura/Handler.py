@@ -6,7 +6,14 @@ This module defines the core handler class for processing HTTP requests.
 """
 
 from typing import List, Dict, Tuple, Optional, Any
-import ssl
+
+# SSL模块导入处理，兼容不含ssl库的Python版本
+# SSL module import handling, compatible with Python versions without ssl library
+try:
+    import ssl
+except ImportError:
+    ssl = None  # type: ignore
+
 from urllib.parse import unquote
 from http import HTTPStatus
 from http.server import SimpleHTTPRequestHandler
@@ -180,9 +187,15 @@ class HTTPRequestHandler(SimpleHTTPRequestHandler):
                             break
                         except Exception as e:
                             # 处理连接异常 | Handle connection exceptions
-                            if isinstance(e, (ConnectionAbortedError,
-                                              ConnectionResetError,
-                                              ssl.SSLEOFError)):
+                            # 构建SSL异常元组，兼容无SSL环境
+                            # Build SSL exception tuple, compatible with no SSL env
+                            ssl_exceptions = (
+                                ssl.SSLEOFError,) if ssl is not None else ()
+                            connection_exceptions = (
+                                ConnectionAbortedError, ConnectionResetError
+                            ) + ssl_exceptions
+
+                            if isinstance(e, connection_exceptions):
                                 print(
                                     f"Client disconnected while handling "
                                     f"{self.command} request for "
