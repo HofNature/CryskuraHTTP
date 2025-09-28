@@ -75,4 +75,3 @@ class ErrorService(BaseService):
 
         # 发送错误页面内容 | Send error page content
         request.wfile.write(page.encode())
-
