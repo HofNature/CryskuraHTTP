@@ -229,9 +229,9 @@ class FileService(BaseService):
                             f.write(this_part)
                 request.send_response(HTTPStatus.CREATED)
                 if request.path[-1]!="/":
-                    request.send_header("Location", request.path+"/"+quote(filename))
+                    request.send_header("Location", quote(request.path+"/"+filename))
                 else:
-                    request.send_header("Location", request.path+quote(filename))
+                    request.send_header("Location", quote(request.path+filename))
                 request.end_headers()
             except Exception as e:
                 if os.path.exists(local_filepaths):
