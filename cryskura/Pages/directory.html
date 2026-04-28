@@ -104,21 +104,17 @@
                     if (!r.ok) throw new Error(r.status);
                     return r.json();
                 }).then(function (d) {
-                    // Issue 2: use DOM construction instead of innerHTML string concat
-                    // to prevent XSS from server-supplied values (d.name, d.path, d.mime_type, etc.)
-                    function esc(v) {
-                        var span = document.createElement("span");
-                        span.textContent = (v === null || v === undefined) ? "" : String(v);
-                        return span.textContent;
-                    }
+                    // Issue 2: use DOM API (textContent) for all value assignment — no innerHTML
+                    // string concatenation. textContent automatically sanitises any HTML, so
+                    // a separate esc() helper is unnecessary.
                     var rows = [
-                        [t("名称", "Name"), esc(d.name)],
-                        [t("路径", "Path"), esc(d.path)],
-                        [t("类型", "Type"), d.is_dir ? t("文件夹", "Directory") : esc(d.mime_type || t("文件", "File"))],
+                        [t("名称", "Name"), d.name == null ? "" : String(d.name)],
+                        [t("路径", "Path"), d.path == null ? "" : String(d.path)],
+                        [t("类型", "Type"), d.is_dir ? t("文件夹", "Directory") : String(d.mime_type || t("文件", "File"))],
                         [t("大小", "Size"), formatSize(d.size)],
-                        [t("修改时间", "Modified"), d.modified ? esc(d.modified.replace("T", " ").replace("Z", " UTC")) : "-"],
-                        [d.is_dir ? t("子项数", "Items") : null, d.is_dir ? (Number(d.file_count) + t(" 个文件, ", " files, ") + Number(d.dir_count) + t(" 个文件夹", " folders")) : null],
-                        [d.permissions != null ? t("权限", "Permissions") : null, esc(d.permissions)],
+                        [t("修改时间", "Modified"), d.modified ? String(d.modified).replace("T", " ").replace("Z", " UTC") : "-"],
+                        [d.is_dir ? t("子项数", "Items") : null, d.is_dir ? (String(d.file_count | 0) + t(" 个文件, ", " files, ") + String(d.dir_count | 0) + t(" 个文件夹", " folders")) : null],
+                        [d.permissions != null ? t("权限", "Permissions") : null, d.permissions == null ? "" : String(d.permissions)],
                     ];
                     var table = document.createElement("table");
                     table.className = "info-table";

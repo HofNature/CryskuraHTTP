@@ -213,6 +213,11 @@ class WebSocketConnection:
         masked = bool(second_byte[0] & 0x80)
         payload_len = second_byte[0] & 0x7F
 
+        # Issue 13: RFC 6455 §5.1 — server MUST close connection on unmasked client frame.
+        # Check immediately after reading the mask bit, before consuming any more frame data.
+        if not masked:
+            raise ConnectionError("Client WebSocket frame must be masked (RFC 6455 §5.1)")
+
         if payload_len == 126:
             payload_len = struct.unpack("!H", self._read_exact(2))[0]
         elif payload_len == 127:
@@ -230,10 +235,6 @@ class WebSocketConnection:
             raise ConnectionError(
                 f"WebSocket frame payload too large: {payload_len} > {_MAX_FRAME_PAYLOAD}"
             )
-
-        # Issue 13: RFC 6455 §5.1 — server MUST close connection on unmasked client frame
-        if not masked:
-            raise ConnectionError("Client WebSocket frame must be masked (RFC 6455 §5.1)")
 
         mask_key = self._read_exact(4)
         raw = bytearray(self._read_exact(payload_len))

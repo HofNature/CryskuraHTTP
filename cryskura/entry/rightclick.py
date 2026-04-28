@@ -29,7 +29,7 @@ def check_environment():
         except (subprocess.CalledProcessError, FileNotFoundError):
             raise PermissionError("Please run this script as an administrator.")
         logger.info("Trying to use sudo...")
-        subprocess.run(["sudo", application_path] + list(application_args))
+        subprocess.run(["sudo", application_path] + list(application_args), check=True)
         sys.exit(0)
     import winreg
     try:
