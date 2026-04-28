@@ -2,12 +2,15 @@
 from __future__ import annotations
 
 import os
-import random
+import secrets
 from typing import TYPE_CHECKING
 from http import HTTPStatus
 
 if TYPE_CHECKING:
     from ...Handler import HTTPRequestHandler
+
+# Issue 7: limit the number of range segments to prevent amplification DoS
+_MAX_RANGES = 10
 
 
 def handle_range_request(
@@ -25,6 +28,12 @@ def handle_range_request(
 
     range_header = request.headers["Range"]
     range_h = range_header.strip("bytes=").split(",")
+
+    # Issue 7: reject requests with too many range segments
+    if len(range_h) > _MAX_RANGES:
+        request.errsvc.handle(request, [], args, "GET", HTTPStatus.REQUESTED_RANGE_NOT_SATISFIABLE)
+        return True
+
     file_size = os.path.getsize(real_path)
     ranges: list[tuple[int, int]] = []
 
@@ -97,7 +106,8 @@ def _send_multi_range(
     file_size: int,
 ) -> None:
     """发送多段 Range 响应 (multipart/byteranges)。"""
-    boundary = "CRYSKURA_BOUNDARY_" + str(random.randint(int(1e10), int(1e11) - 1))
+    # Issue 14: use secrets for an unpredictable boundary
+    boundary = "CRYSKURA_BOUNDARY_" + secrets.token_hex(8)
     request.send_response(HTTPStatus.PARTIAL_CONTENT)
     request.send_header("Content-Type", f"multipart/byteranges; boundary={boundary}")
     request.end_headers()

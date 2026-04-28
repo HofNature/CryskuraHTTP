@@ -44,6 +44,22 @@ class HTTPRequestHandler(SimpleHTTPRequestHandler):
         self.send_header("X-Content-Type-Options", "nosniff")
         self.send_header("X-Frame-Options", "SAMEORIGIN")
         self.send_header("Referrer-Policy", "strict-origin-when-cross-origin")
+        # Issue 9: Content-Security-Policy — pages use inline scripts/styles and data: URIs
+        self.send_header(
+            "Content-Security-Policy",
+            "default-src 'self'; script-src 'self' 'unsafe-inline'; "
+            "style-src 'self' 'unsafe-inline'; img-src 'self' data:; connect-src 'self'",
+        )
+        # Issue 8: HSTS for TLS connections
+        try:
+            import ssl as _ssl
+            if isinstance(self.request, _ssl.SSLSocket):
+                self.send_header(
+                    "Strict-Transport-Security",
+                    "max-age=31536000; includeSubDomains",
+                )
+        except (ImportError, AttributeError):
+            pass
 
     # ── 初始化 ────────────────────────────────────────────────
 

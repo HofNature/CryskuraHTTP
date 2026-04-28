@@ -32,6 +32,12 @@ logger = logging.getLogger(__name__)
 # WebSocket 握手用的 magic GUID (RFC 6455 §4.2.2)
 _WS_MAGIC = b"258EAFA5-E914-47DA-95CA-5AB0DC85B911"
 
+# Issue 4: 单帧载荷大小上限（16 MB），防止超大帧导致 OOM
+_MAX_FRAME_PAYLOAD = 16 * 1024 * 1024  # 16 MB
+
+# Issue 4: 分片消息累计大小上限（64 MB），防止无限分片消耗内存
+_MAX_MESSAGE_SIZE = 64 * 1024 * 1024  # 64 MB
+
 
 # ═══════════════════════════════════════════════════════════════
 #  WebSocket Connection — 帧协议封装
@@ -119,6 +125,7 @@ class WebSocketConnection:
         """
         fragments: list[bytes] = []
         msg_opcode: int = 0
+        total_size: int = 0  # Issue 4: track accumulated fragment size
 
         while True:
             opcode, payload, fin = self._recv_frame()
@@ -151,6 +158,19 @@ class WebSocketConnection:
             # ── 数据帧 ──
             if opcode != self.OP_CONTINUATION:
                 msg_opcode = opcode
+
+            # Issue 4: enforce cumulative message size limit
+            total_size += len(payload)
+            if total_size > _MAX_MESSAGE_SIZE:
+                self.closed = True
+                try:
+                    self._send_frame(self.OP_CLOSE, struct.pack("!H", 1009))
+                    self._wfile.flush()
+                except Exception:
+                    pass
+                raise ConnectionError(
+                    f"WebSocket message too large: {total_size} > {_MAX_MESSAGE_SIZE}"
+                )
 
             fragments.append(payload)
 
@@ -205,14 +225,21 @@ class WebSocketConnection:
             if payload_len > 125:
                 raise ConnectionError("Control frame payload too large")
 
-        if masked:
-            mask_key = self._read_exact(4)
-            raw = bytearray(self._read_exact(payload_len))
-            for i, b in enumerate(raw):
-                raw[i] = b ^ mask_key[i % 4]
-            payload = bytes(raw)
-        else:
-            payload = self._read_exact(payload_len)
+        # Issue 4: reject frames that claim an impossibly large payload
+        if payload_len > _MAX_FRAME_PAYLOAD:
+            raise ConnectionError(
+                f"WebSocket frame payload too large: {payload_len} > {_MAX_FRAME_PAYLOAD}"
+            )
+
+        # Issue 13: RFC 6455 §5.1 — server MUST close connection on unmasked client frame
+        if not masked:
+            raise ConnectionError("Client WebSocket frame must be masked (RFC 6455 §5.1)")
+
+        mask_key = self._read_exact(4)
+        raw = bytearray(self._read_exact(payload_len))
+        for i, b in enumerate(raw):
+            raw[i] = b ^ mask_key[i % 4]
+        payload = bytes(raw)
 
         return opcode, payload, fin
 

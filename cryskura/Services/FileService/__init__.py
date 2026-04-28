@@ -41,6 +41,7 @@ class FileService(BaseService):
         host: Optional[str] = None,
         port: Optional[int] = None,
         upload_limit: int = 0,
+        expose_details: bool = True,
     ) -> None:
         methods = ["GET", "HEAD"]
         if allowUpload:
@@ -52,6 +53,8 @@ class FileService(BaseService):
         self.isFolder = isFolder
         self.allowResume = allowResume
         self.upload_limit = upload_limit
+        # Issue 11: expose_details controls whether ?info includes permissions/is_symlink
+        self.expose_details: bool = expose_details
         self.local_path = os.path.abspath(local_path)
         if not os.path.exists(local_path):
             raise ValueError(f"Path {local_path} does not exist.")
@@ -115,7 +118,7 @@ class FileService(BaseService):
 
         # ?info: 文件信息
         if "info" in args:
-            handle_info(request, real_path)
+            handle_info(request, real_path, self.expose_details)
             return
 
         # ?zip: 压缩下载
