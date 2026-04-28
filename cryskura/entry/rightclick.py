@@ -22,10 +22,14 @@ def check_environment():
         raise ValueError("This function is only available for executable files.")
     if not ctypes.windll.shell32.IsUserAnAdmin():
         logger.info("This function requires administrator privileges.")
-        if os.system("sudo -V") != 0:
+        # Issue 5: use subprocess.run with list args to prevent shell injection
+        import subprocess
+        try:
+            subprocess.run(["sudo", "-V"], check=True, capture_output=True)
+        except (subprocess.CalledProcessError, FileNotFoundError):
             raise PermissionError("Please run this script as an administrator.")
         logger.info("Trying to use sudo...")
-        os.system(f"sudo {application_path} {' '.join(application_args)}")
+        subprocess.run(["sudo", application_path] + list(application_args), check=True)
         sys.exit(0)
     import winreg
     try:

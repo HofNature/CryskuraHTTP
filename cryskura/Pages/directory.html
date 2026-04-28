@@ -104,22 +104,36 @@
                     if (!r.ok) throw new Error(r.status);
                     return r.json();
                 }).then(function (d) {
+                    // Issue 2: use DOM API (textContent) for all value assignment — no innerHTML
+                    // string concatenation. textContent automatically sanitises any HTML, so
+                    // a separate esc() helper is unnecessary.
                     var rows = [
-                        [t("名称", "Name"), d.name],
-                        [t("路径", "Path"), d.path],
-                        [t("类型", "Type"), d.is_dir ? t("文件夹", "Directory") : (d.mime_type || t("文件", "File"))],
+                        [t("名称", "Name"), d.name == null ? "" : String(d.name)],
+                        [t("路径", "Path"), d.path == null ? "" : String(d.path)],
+                        [t("类型", "Type"), d.is_dir ? t("文件夹", "Directory") : String(d.mime_type || t("文件", "File"))],
                         [t("大小", "Size"), formatSize(d.size)],
-                        [t("修改时间", "Modified"), d.modified ? d.modified.replace("T", " ").replace("Z", " UTC") : "-"],
-                        [d.is_dir ? t("子项数", "Items") : null, d.is_dir ? (d.file_count + t(" 个文件, ", " files, ") + d.dir_count + t(" 个文件夹", " folders")) : null],
-                        [t("权限", "Permissions"), d.permissions],
+                        [t("修改时间", "Modified"), d.modified ? String(d.modified).replace("T", " ").replace("Z", " UTC") : "-"],
+                        [d.is_dir ? t("子项数", "Items") : null, d.is_dir ? (String(parseInt(d.file_count, 10) || 0) + t(" 个文件, ", " files, ") + String(parseInt(d.dir_count, 10) || 0) + t(" 个文件夹", " folders")) : null],
+                        [d.permissions != null ? t("权限", "Permissions") : null, d.permissions == null ? "" : String(d.permissions)],
                     ];
-                    var html = '<table class="info-table">';
+                    var table = document.createElement("table");
+                    table.className = "info-table";
                     rows.forEach(function (row) {
                         if (row[0] === null) return;
-                        html += '<tr><td class="info-key">' + row[0] + '</td><td class="info-val">' + row[1] + '</td></tr>';
+                        var tr = document.createElement("tr");
+                        var tdKey = document.createElement("td");
+                        tdKey.className = "info-key";
+                        tdKey.textContent = row[0];
+                        var tdVal = document.createElement("td");
+                        tdVal.className = "info-val";
+                        tdVal.textContent = row[1];
+                        tr.appendChild(tdKey);
+                        tr.appendChild(tdVal);
+                        table.appendChild(tr);
                     });
-                    html += "</table>";
-                    document.getElementById("info-body").innerHTML = html;
+                    var infoBody = document.getElementById("info-body");
+                    infoBody.innerHTML = "";
+                    infoBody.appendChild(table);
                 }).catch(function () {
                     document.getElementById("info-body").innerHTML =
                         '<div style="text-align:center;padding:20px;color:#c00;">' + t("获取信息失败", "Failed to load info") + '</div>';
@@ -283,7 +297,14 @@
             subfolders.forEach(function (subfolder) {
                 var item = document.createElement("div");
                 item.classList.add("item");
-                item.innerHTML = '<span class="icon-folder"></span><span class="item-name">' + document.createTextNode(subfolder).textContent + '</span>';
+                // Issue 3: build DOM nodes instead of concatenating into innerHTML
+                var iconSpan = document.createElement("span");
+                iconSpan.className = "icon-folder";
+                var nameSpan = document.createElement("span");
+                nameSpan.className = "item-name";
+                nameSpan.textContent = subfolder;
+                item.appendChild(iconSpan);
+                item.appendChild(nameSpan);
                 item.addEventListener("click", function () {
                     window.location.href = currentPath(subfolder);
                 });
@@ -297,7 +318,14 @@
             files.forEach(function (file) {
                 var item = document.createElement("div");
                 item.classList.add("item");
-                item.innerHTML = '<span class="icon-file"></span><span class="item-name">' + document.createTextNode(file).textContent + '</span>';
+                // Issue 3: build DOM nodes instead of concatenating into innerHTML
+                var iconSpan = document.createElement("span");
+                iconSpan.className = "icon-file";
+                var nameSpan = document.createElement("span");
+                nameSpan.className = "item-name";
+                nameSpan.textContent = file;
+                item.appendChild(iconSpan);
+                item.appendChild(nameSpan);
                 item.addEventListener("click", function () {
                     window.location.href = currentPath(file);
                 });

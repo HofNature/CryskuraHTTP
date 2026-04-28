@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import html
 import json
 from http import HTTPStatus
 from typing import TYPE_CHECKING
@@ -25,7 +26,8 @@ class ErrorService(BaseService):
         request.send_header("Content-Type", "text/html")
         request.end_headers()
         status_str = HTTPStatus(status).phrase
-        page = Error_Page.replace("CryskuraHTTP", self.server_name)
+        # Issue 12: HTML-escape server_name before embedding in page
+        page = Error_Page.replace("CryskuraHTTP", html.escape(self.server_name))
         page = page.replace('background: url("Cryskura.png");', f'background: url("{Cryskura_Icon}");')
         error_msg = json.dumps(str(status) + ' ' + status_str)
         page = page.replace('let error = "";', f'let error = {error_msg};')

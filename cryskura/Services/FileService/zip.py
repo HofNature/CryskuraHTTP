@@ -57,6 +57,7 @@ def handle_zip(request: HTTPRequestHandler, real_path: str) -> None:
 
 def _build_zip(tmp_path: str, real_path: str, basename: str) -> None:
     """将文件或目录压缩为 zip 并写入临时文件。"""
+    root_real = os.path.realpath(real_path)
     with zipfile.ZipFile(tmp_path, "w", zipfile.ZIP_DEFLATED) as zf:
         if os.path.isfile(real_path):
             zf.write(real_path, basename)
@@ -64,6 +65,11 @@ def _build_zip(tmp_path: str, real_path: str, basename: str) -> None:
             for dirpath, _dirnames, filenames in os.walk(real_path):
                 for fn in filenames:
                     fp = os.path.join(dirpath, fn)
+                    # Issue 6: boundary-check resolved path to prevent symlink escape
+                    resolved = os.path.realpath(fp)
+                    if not (resolved == root_real or resolved.startswith(root_real + os.sep)):
+                        logger.warning("Skipping out-of-tree path in zip: %s -> %s", fp, resolved)
+                        continue
                     arcname = os.path.join(
                         basename, os.path.relpath(fp, real_path),
                     )

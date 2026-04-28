@@ -57,6 +57,9 @@ class CORSService(BaseService):
             request.send_header("Access-Control-Allow-Origin", "*")
         else:
             request.send_header("Access-Control-Allow-Origin", origin)
+            # Issue 10: add Vary: Origin when responding with a specific origin
+            # so caches don't serve a response for one Origin to a different Origin
+            request.send_header("Vary", "Origin")
         request.send_header("Access-Control-Allow-Methods", ", ".join(self.allow_methods))
         request.send_header("Access-Control-Allow-Headers", ", ".join(self.allow_headers))
         if self.allow_credentials:

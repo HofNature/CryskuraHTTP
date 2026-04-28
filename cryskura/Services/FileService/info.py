@@ -11,8 +11,19 @@ if TYPE_CHECKING:
     from ...Handler import HTTPRequestHandler
 
 
-def handle_info(request: HTTPRequestHandler, real_path: str) -> None:
-    """处理 ?info 查询参数，返回文件/目录的详细信息 JSON。"""
+def handle_info(
+    request: HTTPRequestHandler,
+    real_path: str,
+    expose_details: bool = True,
+) -> None:
+    """处理 ?info 查询参数，返回文件/目录的详细信息 JSON。
+
+    Args:
+        request: HTTP 请求对象。
+        real_path: 目标文件/目录的绝对路径。
+        expose_details: Issue 11 — 是否在响应中包含 permissions 和 is_symlink 字段。
+                        默认为 True（保持原有行为），可在敏感环境中设为 False。
+    """
     try:
         st = os.stat(real_path)
     except OSError:
@@ -31,9 +42,12 @@ def handle_info(request: HTTPRequestHandler, real_path: str) -> None:
         ).isoformat(),
         "is_dir": os.path.isdir(real_path),
         "is_file": os.path.isfile(real_path),
-        "is_symlink": os.path.islink(real_path),
-        "permissions": oct(st.st_mode & 0o777),
     }
+
+    # Issue 11: conditionally include sensitive fields
+    if expose_details:
+        info["is_symlink"] = os.path.islink(real_path)
+        info["permissions"] = oct(st.st_mode & 0o777)
 
     if os.path.isdir(real_path):
         try:
