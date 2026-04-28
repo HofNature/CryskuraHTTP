@@ -1,7 +1,12 @@
+"""内置 HTML 页面和图标资源。
+
+Built-in HTML page templates and icon assets.
+"""
+
 import base64
 from importlib.resources import files
 
-_pages = files("cryskura.Pages")
+_pages = files("cryskura.pages")
 Directory_Page = _pages.joinpath("directory.html").read_text(encoding='utf-8')
 Error_Page = _pages.joinpath("error.html").read_text(encoding='utf-8')
 Cryskura_Icon = "data:image/png;base64," + base64.b64encode(

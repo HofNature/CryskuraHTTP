@@ -1,4 +1,7 @@
-"""CryskuraHTTP 服务器主类。"""
+"""CryskuraHTTP 服务器主类。
+
+CryskuraHTTP main server class.
+"""
 from __future__ import annotations
 
 import logging
@@ -14,11 +17,11 @@ except ImportError:
     logging.warning("SSL module not found. HTTPS is not supported.")
     ssl = None  # type: ignore[assignment]
 
-from .Handler import HTTPRequestHandler as Handler
-from .Services.BaseService import BaseService
-from .Services.ErrorService import ErrorService
-from .Services.FileService import FileService
-from .uPnP import uPnPClient
+from .handler import HTTPRequestHandler as Handler
+from .Services.base_service import BaseService
+from .Services.error_service import ErrorService
+from .Services.file_service import FileService
+from .upnp import UPnPClient
 
 logger = logging.getLogger(__name__)
 
@@ -138,6 +141,11 @@ class _PlainHTTPRedirectHandler:
 
 
 class HTTPServer:
+    """CryskuraHTTP 高层服务器：封装 ThreadingHTTPServer，管理生命周期。
+
+    CryskuraHTTP high-level server: wraps ThreadingHTTPServer and manages lifecycle.
+    """
+
     def __init__(
         self,
         interface: str = "127.0.0.1",
@@ -145,48 +153,83 @@ class HTTPServer:
         services: Optional[list[BaseService]] = None,
         error_service: Optional[BaseService] = None,
         server_name: str = "CryskuraHTTP/1.0",
-        forcePort: bool = False,
+        force_port: bool = False,
         certfile: Optional[str] = None,
-        uPnP: bool = False,
+        upnp: bool = False,
         max_request_body: int = 0,
         access_log: bool = False,
         ipv6_v6only: Optional[bool] = None,
+        # 向后兼容参数 / Backward-compatible aliases.
+        forcePort: bool = False,
+        uPnP: bool = False,
     ) -> None:
-        # 验证接口地址是否可用
+        """初始化 HTTP 服务器。
+
+        Initialise the HTTP server.
+
+        Args:
+            interface: 监听地址（默认 "127.0.0.1"）。
+                       Bind address (default "127.0.0.1").
+            port: 监听端口（默认 8080）。
+                  Listen port (default 8080).
+            services: 服务列表。 / List of services.
+            error_service: 错误处理服务。 / Error handler service.
+            server_name: 服务器名称。 / Server name string.
+            force_port: 强制使用端口（忽略占用）。
+                        Force use of the port even if already in use.
+            certfile: PEM 证书文件路径（启用 HTTPS）。
+                      Path to PEM certificate (enables HTTPS).
+            upnp: 是否启用 UPnP 端口映射。 / Enable UPnP port forwarding.
+            max_request_body: 请求体大小限制（0 表示不限）。
+                              Max request body size in bytes (0 = unlimited).
+            access_log: 是否记录访问日志。 / Enable access logging.
+            ipv6_v6only: 设置 IPV6_V6ONLY socket 选项。
+                         Set the IPV6_V6ONLY socket option.
+            forcePort: 已弃用，请使用 force_port。 / Deprecated; use force_port.
+            uPnP: 已弃用，请使用 upnp。 / Deprecated; use upnp.
+        """
+        # 处理向后兼容参数 / Handle backward-compatible aliases.
+        force_port = force_port or forcePort
+        upnp = upnp or uPnP
+
+        # 验证接口地址是否可用 / Validate that the interface address is usable.
         self._validate_interface(interface)
 
-        # 检查端口是否被占用
+        # 检查端口是否被占用 / Check if the port is already in use.
         try:
             port_in_use = self._is_port_in_use(interface, port)
-        except Exception as e:
+        except Exception as e:  # pylint: disable=broad-exception-caught
             logger.error("Error checking port availability: %s, skipping check", e)
             port_in_use = False
 
         if port_in_use:
-            if forcePort:
-                logger.warning("Port %d is already in use. Forcing to use port %d.", port, port)
+            if force_port:
+                logger.warning(
+                    "Port %d is already in use. Forcing to use port %d.", port, port
+                )
             else:
                 raise ValueError(f"Port {port} is already in use.")
         self.interface: str = interface
 
-        # 检查uPnP是否可用
-        self.uPnP: Optional[uPnPClient]
-        if uPnP:
-            self.uPnP = uPnPClient(interface)
-            if not self.uPnP.available:
+        # 检查 UPnP 是否可用 / Check if UPnP is available.
+        self.upnp: Optional[UPnPClient]
+        if upnp:
+            self.upnp = UPnPClient(interface)
+            if not self.upnp.available:
                 logger.info("Disabling uPnP port forwarding.")
-                self.uPnP = None
+                self.upnp = None
         else:
-            self.uPnP = None
+            self.upnp = None
 
-        # Linux下端口小于1024需要root权限
+        # Linux 下端口小于 1024 需要 root 权限。
+        # On Linux, ports below 1024 require root privileges.
         if os.name == "posix" and port < 1024 and os.geteuid() != 0:
             raise PermissionError(f"Port {port} requires root permission.")
         if port < 0 or port > 65535:
             raise ValueError(f"Port {port} is out of range.")
         self.port: int = port
 
-        # 检查服务是否合法
+        # 检查服务是否合法 / Validate and assign services.
         if services is None:
             self.services: list[BaseService] = [FileService(
                 os.fspath(os.getcwd()), "/", server_name=server_name)]
@@ -198,16 +241,18 @@ class HTTPServer:
                 else:
                     raise ValueError(f"Service {service} is not a valid service.")
 
-        # 检查错误服务是否合法
+        # 检查错误服务是否合法 / Validate and assign the error service.
         if error_service is None:
             self.error_service: BaseService = ErrorService(server_name)
         else:
             if isinstance(error_service, BaseService):
                 self.error_service = error_service
             else:
-                raise ValueError(f"Service {error_service} is not a valid service.")
+                raise ValueError(
+                    f"Service {error_service} is not a valid service."
+                )
 
-        # 检查证书是否合法
+        # 检查证书是否合法 / Validate the certificate file.
         self.certfile: Optional[str]
         if certfile is not None:
             if not os.path.exists(certfile):
@@ -225,7 +270,10 @@ class HTTPServer:
 
     @staticmethod
     def _validate_interface(interface: str) -> None:
-        """通过 socket.bind 验证接口地址是否可用。"""
+        """通过 socket.bind 验证接口地址是否可用。
+
+        Validate that the interface address is usable via socket.bind.
+        """
         if interface in ("0.0.0.0", "::", ""):
             return
         af = socket.AF_INET6 if ":" in interface else socket.AF_INET
@@ -241,7 +289,10 @@ class HTTPServer:
 
     @staticmethod
     def _is_port_in_use(interface: str, port: int) -> bool:
-        """通过 socket.bind 探测端口是否已被占用。"""
+        """通过 socket.bind 探测端口是否已被占用。
+
+        Probe whether a port is already in use via socket.bind.
+        """
         af = socket.AF_INET6 if ":" in interface else socket.AF_INET
         test_sock = socket.socket(af, socket.SOCK_STREAM)
         try:
@@ -254,6 +305,14 @@ class HTTPServer:
             return True
 
     def start(self, threaded: bool = True) -> None:
+        """启动服务器。
+
+        Start the server.
+
+        Args:
+            threaded: True 表示在后台线程中运行，False 表示阻塞直到停止。
+                      True to run in a background thread; False to block until stopped.
+        """
         ready_event = threading.Event()
 
         def handler(*args, **kwargs):
@@ -262,6 +321,7 @@ class HTTPServer:
                 max_request_body=self.max_request_body,
                 access_log=self.access_log, **kwargs,
             )
+
         af = socket.AF_INET6 if ":" in self.interface else socket.AF_INET
         self.server = _CryskuraHTTPServer(
             (self.interface, self.port), handler, address_family=af,
@@ -273,7 +333,10 @@ class HTTPServer:
                 ssl_ctx.load_cert_chain(certfile=self.certfile)
             except Exception as e:
                 raise ValueError(
-                    f"Error loading certificate: {e}\nPlease provide a valid certificate file.\nOnly PEM file with both certificate and private key is supported.") from e
+                    f"Error loading certificate: {e}\n"
+                    "Please provide a valid certificate file.\n"
+                    "Only PEM file with both certificate and private key is supported."
+                ) from e
 
             _orig_get_request = self.server.get_request
 
@@ -281,7 +344,7 @@ class HTTPServer:
                 sock, addr = _orig_get_request()
                 try:
                     first_byte = sock.recv(1, socket.MSG_PEEK)
-                except Exception:
+                except Exception:  # pylint: disable=broad-exception-caught
                     sock.close()
                     raise
 
@@ -292,8 +355,8 @@ class HTTPServer:
                 if first_byte[0] == 0x16:
                     return ssl_ctx.wrap_socket(sock, server_side=True), addr
 
-                handler = _PlainHTTPRedirectHandler(sock, ssl_ctx)
-                handler._handle_plain_http()
+                plain_handler = _PlainHTTPRedirectHandler(sock, ssl_ctx)
+                plain_handler._handle_plain_http()
                 raise ConnectionError("Plain HTTP on HTTPS port — redirected")
 
             def _handle_request_noblock_safe():
@@ -301,7 +364,7 @@ class HTTPServer:
                     request, client_address = self.server.get_request()
                 except (OSError, ConnectionError):
                     return
-                except Exception:
+                except Exception:  # pylint: disable=broad-exception-caught
                     return
                 if self.server.verify_request(request, client_address):
                     self.server.process_request(request, client_address)
@@ -309,17 +372,21 @@ class HTTPServer:
                     self.server.shutdown_request(request)
 
             self.server.get_request = _get_request_with_redirect  # type: ignore[assignment]
-            self.server._handle_request_noblock = _handle_request_noblock_safe  # type: ignore[attr-defined]
+            self.server._handle_request_noblock = (  # type: ignore[attr-defined]
+                _handle_request_noblock_safe
+            )
         if ":" in self.interface:
             logger.info("Server started at [%s]:%d", self.interface, self.port)
         else:
             logger.info("Server started at %s:%d", self.interface, self.port)
-        if self.uPnP is not None:
-            res, port_maps = self.uPnP.add_port_mapping(
+        if self.upnp is not None:
+            res, port_maps = self.upnp.add_port_mapping(
                 self.port, self.port, "TCP", self.server_name)
             if res:
                 for mapping in port_maps:
-                    logger.info("Service is available at %s:%d", mapping[0], mapping[1])
+                    logger.info(
+                        "Service is available at %s:%d", mapping[0], mapping[1]
+                    )
         if threaded:
             self.thread = threading.Thread(
                 target=self._serve_with_ready, args=(ready_event,))
@@ -329,29 +396,39 @@ class HTTPServer:
             self.serve_forever()
 
     def _serve_with_ready(self, ready_event: threading.Event) -> None:
-        """在 serve_forever 前通知就绪。"""
+        """在 serve_forever 前通知就绪。
+
+        Signal readiness before entering serve_forever.
+        """
         ready_event.set()
         self.serve_forever()
 
     def serve_forever(self) -> None:
+        """阻塞地运行服务器，直到 KeyboardInterrupt 或异常。
+
+        Run the server in a blocking loop until KeyboardInterrupt or exception.
+        """
         try:
             if self.server is not None:
                 self.server.serve_forever()
         except KeyboardInterrupt:
-            if self.uPnP is not None:
-                self.uPnP.remove_port_mapping()
+            if self.upnp is not None:
+                self.upnp.remove_port_mapping()
             logger.info("Server on port %d stopped.", self.port)
             self.stop()
         except Exception:
-            if self.uPnP is not None:
-                self.uPnP.remove_port_mapping()
+            if self.upnp is not None:
+                self.upnp.remove_port_mapping()
             raise
 
     def stop(self) -> None:
-        """优雅停机：等待在途请求完成后关闭。"""
+        """优雅停机：等待在途请求完成后关闭。
+
+        Graceful shutdown: wait for in-flight requests before closing.
+        """
         if self.server is not None:
-            if self.uPnP is not None:
-                self.uPnP.remove_port_mapping()
+            if self.upnp is not None:
+                self.upnp.remove_port_mapping()
             if self.thread is not None:
                 self.server.shutdown()
                 self.thread.join(timeout=10)
