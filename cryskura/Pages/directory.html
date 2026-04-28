@@ -113,7 +113,7 @@
                         [t("类型", "Type"), d.is_dir ? t("文件夹", "Directory") : String(d.mime_type || t("文件", "File"))],
                         [t("大小", "Size"), formatSize(d.size)],
                         [t("修改时间", "Modified"), d.modified ? String(d.modified).replace("T", " ").replace("Z", " UTC") : "-"],
-                        [d.is_dir ? t("子项数", "Items") : null, d.is_dir ? (String(d.file_count | 0) + t(" 个文件, ", " files, ") + String(d.dir_count | 0) + t(" 个文件夹", " folders")) : null],
+                        [d.is_dir ? t("子项数", "Items") : null, d.is_dir ? (String(parseInt(d.file_count, 10) || 0) + t(" 个文件, ", " files, ") + String(parseInt(d.dir_count, 10) || 0) + t(" 个文件夹", " folders")) : null],
                         [d.permissions != null ? t("权限", "Permissions") : null, d.permissions == null ? "" : String(d.permissions)],
                     ];
                     var table = document.createElement("table");

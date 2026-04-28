@@ -236,6 +236,8 @@ class WebSocketConnection:
                 f"WebSocket frame payload too large: {payload_len} > {_MAX_FRAME_PAYLOAD}"
             )
 
+        # The unmasked-frame check above guarantees masked is True here.
+        # Read the 4-byte masking key and XOR-decode the payload.
         mask_key = self._read_exact(4)
         raw = bytearray(self._read_exact(payload_len))
         for i, b in enumerate(raw):
