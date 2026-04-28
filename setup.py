@@ -14,13 +14,13 @@ long_description += long_description_zh
 
 setup(
     name="cryskura",
-    version="1.0-beta.14",
+    version="1.0-beta.15",
     author="HofNature",
     description="A straightforward Python package that functions as an HTTP(s) server",
     long_description=long_description,
     long_description_content_type='text/markdown',
     packages=find_packages(),
-    install_requires=["psutil"],
+    install_requires=[],
     extras_require={
         'upnp': ["upnpclient"]
     },
@@ -46,6 +46,7 @@ setup(
         "Programming Language :: Python :: 3.11",
         "Programming Language :: Python :: 3.12",
         "Programming Language :: Python :: 3.13",
+        "Programming Language :: Python :: 3.14",
         "Operating System :: OS Independent",
     ]
 )

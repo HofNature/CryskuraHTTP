@@ -1,42 +1,61 @@
-from . import BaseService, Route
-from .. import Handler
+from __future__ import annotations
+
 import os
 from http import HTTPStatus
+from typing import Optional, TYPE_CHECKING
+
+from .BaseService import BaseService, Route
+
+if TYPE_CHECKING:
+    from ..Handler import HTTPRequestHandler
+    from .._types import AuthFunc
+
 
 class PageService(BaseService):
-    def __init__(self, local_path, remote_path,index_pages=("index.html", "index.htm"),auth_func=None,host=None,port=None):
+    def __init__(
+        self,
+        local_path: str,
+        remote_path: str,
+        index_pages: tuple[str, ...] = ("index.html", "index.htm"),
+        auth_func: Optional[AuthFunc] = None,
+        host: Optional[str] = None,
+        port: Optional[int] = None,
+    ) -> None:
         self.routes = [
-            Route(remote_path, ["GET","HEAD"], "prefix",host,port),
+            Route(remote_path, ["GET", "HEAD"], "prefix", host, port),
         ]
-        self.local_path = os.path.abspath(local_path)
-        self.index_pages = index_pages
+        self.local_path: str = os.path.abspath(local_path)
+        self.index_pages: tuple[str, ...] = index_pages
         super().__init__(self.routes, auth_func)
-        self.remote_path = self.routes[0].path
-    
-    def calc_path(self, path:list):
+        self.remote_path: list[str] = self.routes[0].path
+
+    def calc_path(self, path: list[str]) -> tuple[bool, str, str]:
         sub_path = path[len(self.remote_path):]
-        r_directory=os.path.abspath(self.local_path)
-        r_path='/'+'/'.join(sub_path)
-        real_path = os.path.join(r_directory, '/'.join(sub_path))
-        isValid = False
-        common_path = os.path.commonpath([real_path, self.local_path])
-        if os.path.exists(real_path) and os.path.samefile(common_path, self.local_path):
+        r_directory = os.path.abspath(self.local_path)
+        real_path = os.path.realpath(os.path.join(r_directory, '/'.join(sub_path)))
+        r_path = '/' + '/'.join(sub_path)
+        is_valid = False
+        try:
+            common_path = os.path.commonpath([real_path, os.path.realpath(self.local_path)])
+        except ValueError:
+            return False, r_directory, r_path
+        if os.path.exists(real_path) and os.path.samefile(common_path, os.path.realpath(self.local_path)):
             if os.path.isfile(real_path):
-                isValid = True
+                is_valid = True
             else:
                 for file in self.index_pages:
                     if os.path.exists(os.path.join(real_path, file)):
-                        isValid = True
+                        is_valid = True
                         r_path = os.path.join(r_path, file)
                         break
-        return isValid, r_directory, r_path
+        return is_valid, r_directory, r_path
 
-    def handle_GET(self, request:Handler, path:list,args:dict):
+    def handle_GET(self, request: HTTPRequestHandler, path: list[str], args: dict[str, str]) -> None:
         if not self.auth_verify(request, path, args, "GET"):
             return
-        isValid, request.directory, request.path = self.calc_path(path)
-        if not isValid:
-            request.errsvc.handle(request, path, args, "GET",HTTPStatus.NOT_FOUND)
+        is_valid, request.directory, request.path = self.calc_path(path)
+        if not is_valid:
+            request.errsvc.handle(request, path, args, "GET", HTTPStatus.NOT_FOUND)
             return
         f = request.send_head()
         if f:
@@ -46,13 +65,13 @@ class PageService(BaseService):
                 f.close()
                 raise e
             f.close()
-    
-    def handle_HEAD(self, request:Handler, path:list,args:dict):
+
+    def handle_HEAD(self, request: HTTPRequestHandler, path: list[str], args: dict[str, str]) -> None:
         if not self.auth_verify(request, path, args, "HEAD"):
             return
-        isValid,request.directory, request.path = self.calc_path(path)
-        if not isValid:
-            request.errsvc.handle(request, path, args, "HEAD",HTTPStatus.NOT_FOUND)
+        is_valid, request.directory, request.path = self.calc_path(path)
+        if not is_valid:
+            request.errsvc.handle(request, path, args, "HEAD", HTTPStatus.NOT_FOUND)
             return
         f = request.send_head()
         if f:

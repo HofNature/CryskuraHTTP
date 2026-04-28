@@ -1,7 +1,9 @@
-import importlib.resources as res
-from cryskura import Pages
 import base64
+from importlib.resources import files
 
-Directory_Page = res.read_text(Pages, "directory.html", encoding='utf-8', errors='strict')
-Error_Page = res.read_text(Pages, "error.html", encoding='utf-8', errors='strict')
-Cryskura_Icon = "data:image/png;base64,"+base64.b64encode(res.read_binary(Pages, "Cryskura.png")).decode('utf-8')
+_pages = files("cryskura.Pages")
+Directory_Page = _pages.joinpath("directory.html").read_text(encoding='utf-8')
+Error_Page = _pages.joinpath("error.html").read_text(encoding='utf-8')
+Cryskura_Icon = "data:image/png;base64," + base64.b64encode(
+    _pages.joinpath("Cryskura.png").read_bytes()
+).decode('utf-8')

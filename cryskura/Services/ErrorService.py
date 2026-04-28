@@ -1,24 +1,32 @@
-from ..Pages import Error_Page,Cryskura_Icon
+from __future__ import annotations
 
-from . import BaseService
-from .. import Handler
-
+import json
 from http import HTTPStatus
+from typing import TYPE_CHECKING
+
+from ..Pages import Error_Page, Cryskura_Icon
+from .BaseService import BaseService
+
+if TYPE_CHECKING:
+    from ..Handler import HTTPRequestHandler as Handler
+
 
 class ErrorService(BaseService):
-    def __init__(self, server_name):
-        self.server_name = server_name
+    def __init__(self, server_name: str) -> None:
+        super().__init__([])
+        self.server_name: str = server_name
 
-    def handle(self, request:Handler, path:list,args:dict, method:str, status:int):
-        if method=="HEAD":
+    def handle(self, request: Handler, path: list[str], args: dict[str, str], method: str, status: int) -> None:
+        if method == "HEAD":
             request.send_response(status)
             request.end_headers()
             return
         request.send_response(status)
         request.send_header("Content-Type", "text/html")
         request.end_headers()
-        statusStr=HTTPStatus(status).phrase
-        Page=Error_Page.replace("CryskuraHTTP", self.server_name)
-        Page=Page.replace('background: url("Cryskura.png");', f'background: url("{Cryskura_Icon}");')
-        Page=Page.replace("<script>", f"<script>let error='{str(status)+' '+statusStr}';")
-        request.wfile.write(Page.encode())
+        status_str = HTTPStatus(status).phrase
+        page = Error_Page.replace("CryskuraHTTP", self.server_name)
+        page = page.replace('background: url("Cryskura.png");', f'background: url("{Cryskura_Icon}");')
+        error_msg = json.dumps(str(status) + ' ' + status_str)
+        page = page.replace('let error = "";', f'let error = {error_msg};')
+        request.wfile.write(page.encode())
