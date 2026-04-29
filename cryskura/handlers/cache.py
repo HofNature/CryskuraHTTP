@@ -6,7 +6,7 @@ from typing import Optional, TYPE_CHECKING
 from http import HTTPStatus
 
 if TYPE_CHECKING:
-    from ..Handler import HTTPRequestHandler
+    from ..handler import HTTPRequestHandler
 
 
 def _real_path(request: HTTPRequestHandler) -> Optional[str]:
