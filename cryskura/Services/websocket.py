@@ -22,10 +22,10 @@ import struct
 import threading
 from typing import Callable, Optional, TYPE_CHECKING
 
-from .BaseService import BaseService, Route
+from .base_service import BaseService, Route
 
 if TYPE_CHECKING:
-    from ..Handler import HTTPRequestHandler as Handler
+    from ..handler import HTTPRequestHandler as Handler
 
 logger = logging.getLogger(__name__)
 

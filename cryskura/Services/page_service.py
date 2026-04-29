@@ -4,10 +4,10 @@ import os
 from http import HTTPStatus
 from typing import Optional, TYPE_CHECKING
 
-from .BaseService import BaseService, Route
+from .base_service import BaseService, Route
 
 if TYPE_CHECKING:
-    from ..Handler import HTTPRequestHandler
+    from ..handler import HTTPRequestHandler
     from .._types import AuthFunc
 
 

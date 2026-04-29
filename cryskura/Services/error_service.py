@@ -5,11 +5,11 @@ import json
 from http import HTTPStatus
 from typing import TYPE_CHECKING
 
-from ..Pages import Error_Page, Cryskura_Icon
-from .BaseService import BaseService
+from ..pages import Error_Page, Cryskura_Icon
+from .base_service import BaseService
 
 if TYPE_CHECKING:
-    from ..Handler import HTTPRequestHandler as Handler
+    from ..handler import HTTPRequestHandler as Handler
 
 
 class ErrorService(BaseService):

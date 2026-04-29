@@ -12,8 +12,8 @@ from http.client import HTTPResponse
 
 import pytest
 
-from cryskura.Services.FileService import FileService
-from cryskura.Services.BaseService import Route
+from cryskura.Services.file_service import FileService
+from cryskura.Services.base_service import Route
 
 from conftest import HTTPTestClient, start_server, stop_server
 

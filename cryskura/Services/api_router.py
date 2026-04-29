@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 from typing import Callable, Optional, TYPE_CHECKING
-from .APIService import APIService
+from .api_service import APIService
 
 if TYPE_CHECKING:
     pass

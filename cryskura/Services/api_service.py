@@ -3,10 +3,10 @@ from __future__ import annotations
 import re
 from typing import Callable, Optional, Union, TYPE_CHECKING
 
-from .BaseService import BaseService, Route
+from .base_service import BaseService, Route
 
 if TYPE_CHECKING:
-    from ..Handler import HTTPRequestHandler as Handler
+    from ..handler import HTTPRequestHandler as Handler
     from .._types import AuthFunc
 
 
@@ -36,7 +36,10 @@ class APIService(BaseService):
         self.func: APIFuncType = func
         self.length_limit: int = length_limit
         for method in methods:
-            setattr(self, f"handle_{method}", lambda request, path, args, method=method: self.handle_API(request, path, args, method))
+            setattr(
+                self, f"handle_{method}",
+                lambda request, path, args, method=method: self.handle_API(request, path, args, method),
+            )
         super().__init__(self.routes, auth_func)
         self.remote_path: list[str] = self.routes[0].path
 

@@ -4,10 +4,10 @@ from __future__ import annotations
 from http import HTTPStatus
 from typing import Optional, TYPE_CHECKING
 
-from .BaseService import BaseService, Route
+from .base_service import BaseService, Route
 
 if TYPE_CHECKING:
-    from ..Handler import HTTPRequestHandler as Handler
+    from ..handler import HTTPRequestHandler as Handler
 
 
 class CORSService(BaseService):
@@ -40,8 +40,12 @@ class CORSService(BaseService):
             Route(remote_path, ["OPTIONS"], "prefix", host, port),
         ]
         self.allow_origins: list[str] = allow_origins if allow_origins is not None else ["*"]
-        self.allow_methods: list[str] = allow_methods if allow_methods is not None else ["GET", "HEAD", "POST", "OPTIONS"]
-        self.allow_headers: list[str] = allow_headers if allow_headers is not None else ["Content-Type", "Authorization"]
+        self.allow_methods: list[str] = (
+            allow_methods if allow_methods is not None else ["GET", "HEAD", "POST", "OPTIONS"]
+        )
+        self.allow_headers: list[str] = (
+            allow_headers if allow_headers is not None else ["Content-Type", "Authorization"]
+        )
         self.expose_headers: Optional[list[str]] = expose_headers
         self.allow_credentials: bool = allow_credentials
         self.max_age: int = max_age

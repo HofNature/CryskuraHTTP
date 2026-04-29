@@ -10,10 +10,10 @@ from http.client import HTTPConnection, HTTPSConnection
 from typing import Optional, TYPE_CHECKING
 from urllib.parse import urlparse, urlencode
 
-from .BaseService import BaseService, Route
+from .base_service import BaseService, Route
 
 if TYPE_CHECKING:
-    from ..Handler import HTTPRequestHandler as Handler
+    from ..handler import HTTPRequestHandler as Handler
     from .._types import AuthFunc
 
 logger = logging.getLogger(__name__)

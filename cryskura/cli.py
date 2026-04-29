@@ -5,10 +5,10 @@ import os
 import sys
 import logging
 from cryskura import __version__
-from .Server import HTTPServer
-from .Services.FileService import FileService
-from .Services.PageService import PageService
-from .Services.RedirectService import RedirectService
+from .server import HTTPServer
+from .Services.file_service import FileService
+from .Services.page_service import PageService
+from .Services.redirect_service import RedirectService
 
 logger = logging.getLogger(__name__)
 
@@ -21,11 +21,14 @@ def main() -> None:
     parser.add_argument("-i", "--interface", type=str, default="0.0.0.0", help="The interface to listen on.")
     parser.add_argument("-p", "--port", type=int, default=8080, help="The port to listen on.")
     parser.add_argument("-c", "--certfile", type=str, default=None, help="The path to the certificate file.")
-    parser.add_argument("-f", "--forcePort", action="store_true", help="Force to use the specified port even if it is already in use.")
+    parser.add_argument("-f", "--forcePort", action="store_true",
+                        help="Force to use the specified port even if it is already in use.")
     parser.add_argument("-d", "--path", type=str, default=None, help="The path to the directory to serve.")
     parser.add_argument("-n", "--name", type=str, default=None, help="The name of the server.")
-    parser.add_argument("-j", "--http_to_https", type=int, default=None, help="Port to redirect HTTP requests to HTTPS.")
-    parser.add_argument("-w", "--webMode", action="store_true", help="Enable web mode. Which means only files can be accessed, not directories.")
+    parser.add_argument("-j", "--http_to_https", type=int, default=None,
+                        help="Port to redirect HTTP requests to HTTPS.")
+    parser.add_argument("-w", "--webMode", action="store_true",
+                        help="Enable web mode. Which means only files can be accessed, not directories.")
     parser.add_argument("-r", "--allowResume", action="store_true", help="Allow resume download.")
     parser.add_argument("-b", "--browser", action="store_true", help="Open the browser after starting the server.")
     parser.add_argument("-ba", "--browserAddress", type=str, default=None, help="The address to open in the browser.")
@@ -33,7 +36,8 @@ def main() -> None:
     parser.add_argument("-u", "--uPnP", action="store_true", help="Enable uPnP port forwarding.")
     parser.add_argument("-al", "--accessLog", action="store_true", help="Enable access logging.")
     parser.add_argument("-6", "--ipv6Only", action="store_true",
-                        help="Disable IPv6 dual-stack (set IPV6_V6ONLY=1). By default, IPv6 sockets accept IPv4 connections.")
+                        help="Disable IPv6 dual-stack (set IPV6_V6ONLY=1). "
+                             "By default, IPv6 sockets accept IPv4 connections.")
     parser.add_argument("-pf", "--pidFile", type=str, default=None, help="Path to PID file.")
     parser.add_argument("-ar", "--addRightClick", action="store_true", help="Add to right-click menu.")
     parser.add_argument("-rr", "--removeRightClick", action="store_true", help="Remove from right-click menu.")
@@ -94,9 +98,9 @@ def _build_services(args) -> list:
             raise ValueError("Web mode does not support file upload.")
         return [PageService(args.path, "/")]
     return [FileService(
-            args.path, "/", server_name=args.name,
-            allowResume=args.allowResume, allowUpload=args.allowUpload,
-        )]
+        args.path, "/", server_name=args.name,
+        allowResume=args.allowResume, allowUpload=args.allowUpload,
+    )]
 
 
 def _launch_server(args, services: list) -> None:

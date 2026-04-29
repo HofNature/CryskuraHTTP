@@ -6,10 +6,10 @@ import time
 from http import HTTPStatus
 from typing import Optional, TYPE_CHECKING
 
-from .BaseService import BaseService, Route
+from .base_service import BaseService, Route
 
 if TYPE_CHECKING:
-    from ..Handler import HTTPRequestHandler as Handler
+    from ..handler import HTTPRequestHandler as Handler
 
 _start_time: float = time.time()
 

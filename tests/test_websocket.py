@@ -12,7 +12,7 @@ import time
 
 import pytest
 
-from cryskura.Services.WebSocket import (
+from cryskura.Services.websocket import (
     WebSocketConnection, compute_accept_key, _WS_MAGIC,
 )
 
@@ -216,7 +216,7 @@ class TestWebSocketServiceIntegration:
     def test_echo(self):
         """完整的 WebSocket echo 测试。"""
         import socket
-        from cryskura.Services.WebSocket import WebSocketService
+        from cryskura.Services.websocket import WebSocketService
         from conftest import start_server, stop_server, get_free_port
 
         messages = []

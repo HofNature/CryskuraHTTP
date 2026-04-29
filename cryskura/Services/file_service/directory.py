@@ -7,7 +7,7 @@ import json
 import re
 from typing import TYPE_CHECKING
 from http import HTTPStatus
-from ...Pages import Directory_Page, Cryskura_Icon
+from ...pages import Directory_Page, Cryskura_Icon
 
 if TYPE_CHECKING:
     from ...Handler import HTTPRequestHandler

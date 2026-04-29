@@ -5,15 +5,15 @@ __all__ = [
     "ReverseProxyService",
 ]
 
-from .BaseService import BaseService, Route
-from .ErrorService import ErrorService
-from .FileService import FileService
-from .RedirectService import RedirectService
-from .PageService import PageService
-from .APIService import APIService
-from .APIRouter import APIRouter
-from .CORS import CORSService
-from .HealthService import HealthService
-from .SimpleAPIRouter import SimpleAPIRouter
-from .WebSocket import WebSocketService
-from .ReverseProxy import ReverseProxyService
+from .base_service import BaseService, Route
+from .error_service import ErrorService
+from .file_service import FileService
+from .redirect_service import RedirectService
+from .page_service import PageService
+from .api_service import APIService
+from .api_router import APIRouter
+from .cors import CORSService
+from .health_service import HealthService
+from .simple_api_router import SimpleAPIRouter
+from .websocket import WebSocketService
+from .reverse_proxy import ReverseProxyService

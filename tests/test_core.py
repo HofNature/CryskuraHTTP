@@ -9,10 +9,10 @@ import gzip
 
 import pytest
 
-from cryskura.Compression import (
+from cryskura.compression import (
     GzipFileWrapper, is_compressible, accepts_gzip, COMPRESSIBLE_TYPES,
 )
-from cryskura.Services.BaseService import Route
+from cryskura.Services.base_service import Route
 
 
 # ═══════════════════════════════════════════════════════════════

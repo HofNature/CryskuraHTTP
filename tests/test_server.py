@@ -10,8 +10,8 @@ import time
 import pytest
 
 from cryskura import Server
-from cryskura.Server import _CryskuraHTTPServer
-from cryskura.Services.FileService import FileService
+from cryskura.server import _CryskuraHTTPServer
+from cryskura.Services.file_service import FileService
 
 from conftest import HTTPTestClient, start_server, stop_server, get_free_port
 

@@ -11,7 +11,7 @@ from http.client import HTTPResponse
 import pytest
 
 from cryskura import Server
-from cryskura.Services.FileService import FileService
+from cryskura.Services.file_service import FileService
 
 
 # ═══════════════════════════════════════════════════════════════

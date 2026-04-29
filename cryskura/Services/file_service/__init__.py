@@ -14,7 +14,7 @@ import os
 from http import HTTPStatus
 from typing import Optional, TYPE_CHECKING
 
-from ..BaseService import BaseService, Route
+from ..base_service import BaseService, Route
 from .directory import handle_directory
 from .info import handle_info
 from .range import handle_range_request

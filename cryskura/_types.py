@@ -3,7 +3,7 @@ from typing import TYPE_CHECKING, Callable
 
 if TYPE_CHECKING:
     import http.client
-    from .Handler import HTTPRequestHandler
+    from .handler import HTTPRequestHandler
 
 # 鉴权函数签名：(cookies, path, args, operation) -> bool
 AuthFunc = Callable[[dict[str, str], list[str], dict[str, str], str], bool]

@@ -18,12 +18,11 @@ except ImportError:
     _SSL_EOF = OSError
 
 from . import __version__
-from .Compression import GzipFileWrapper, is_compressible, accepts_gzip
+from .compression import GzipFileWrapper, is_compressible, accepts_gzip
 from .handlers.cache import check_cache, add_cache_headers
 
 if TYPE_CHECKING:
-    from .Services.BaseService import BaseService
-    from .Services.ErrorService import ErrorService
+    from .Services.base_service import BaseService
 
 logger = logging.getLogger(__name__)
 
