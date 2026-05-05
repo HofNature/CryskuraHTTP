@@ -131,7 +131,10 @@ class BaseService:
 
     # ── 错误处理（由 ErrorService 覆盖）────────────────────────
 
-    def handle(self, request: Handler, path: list[str], args: dict[str, str], method: str, status: int) -> None:
+    def handle(
+        self, request: Handler, path: list[str], args: dict[str, str],
+        method: str, status: int,
+    ) -> None:
         """默认错误处理，子类（如 ErrorService）应覆盖此方法。"""
         raise NotImplementedError
 

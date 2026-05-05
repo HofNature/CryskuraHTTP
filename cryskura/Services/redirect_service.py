@@ -72,7 +72,9 @@ class RedirectService(BaseService):
             r_path = self.redirect_path
         return r_path
 
-    def handle_GET(self, request: HTTPRequestHandler, path: list[str], args: dict[str, str]) -> None:
+    def handle_GET(
+        self, request: HTTPRequestHandler, path: list[str], args: dict[str, str],
+    ) -> None:
         if not self.auth_verify(request, path, args, "GET"):
             return
         r_path = self.calc_path(path, request)
@@ -83,7 +85,9 @@ class RedirectService(BaseService):
         request.send_header("Location", r_path)
         request.end_headers()
 
-    def handle_HEAD(self, request: HTTPRequestHandler, path: list[str], args: dict[str, str]) -> None:
+    def handle_HEAD(
+        self, request: HTTPRequestHandler, path: list[str], args: dict[str, str],
+    ) -> None:
         if not self.auth_verify(request, path, args, "HEAD"):
             return
         r_path = self.calc_path(path, request)
@@ -94,7 +98,9 @@ class RedirectService(BaseService):
         request.send_header("Location", r_path)
         request.end_headers()
 
-    def handle_POST(self, request: HTTPRequestHandler, path: list[str], args: dict[str, str]) -> None:
+    def handle_POST(
+        self, request: HTTPRequestHandler, path: list[str], args: dict[str, str],
+    ) -> None:
         if not self.auth_verify(request, path, args, "POST"):
             return
         r_path = self.calc_path(path, request)

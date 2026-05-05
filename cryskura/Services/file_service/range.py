@@ -52,18 +52,27 @@ def handle_range_request(
                     start = int(start_str)
                     end = min(int(end_str), file_size - 1)
             except ValueError:
-                request.errsvc.handle(request, [], args, "GET", HTTPStatus.REQUESTED_RANGE_NOT_SATISFIABLE)
+                request.errsvc.handle(
+                    request, [], args, "GET",
+                    HTTPStatus.REQUESTED_RANGE_NOT_SATISFIABLE,
+                )
                 return True
         else:
             try:
                 start = int(r)
             except ValueError:
-                request.errsvc.handle(request, [], args, "GET", HTTPStatus.REQUESTED_RANGE_NOT_SATISFIABLE)
+                request.errsvc.handle(
+                    request, [], args, "GET",
+                    HTTPStatus.REQUESTED_RANGE_NOT_SATISFIABLE,
+                )
                 return True
             end = file_size - 1
 
         if start < 0 or start > end:
-            request.errsvc.handle(request, [], args, "GET", HTTPStatus.REQUESTED_RANGE_NOT_SATISFIABLE)
+            request.errsvc.handle(
+                request, [], args, "GET",
+                HTTPStatus.REQUESTED_RANGE_NOT_SATISFIABLE,
+            )
             return True
         ranges.append((start, end))
 

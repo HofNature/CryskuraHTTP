@@ -24,7 +24,8 @@ logger = logging.getLogger(__name__)
 def _parse_filename(content_disposition: str) -> str | None:
     """从 Content-Disposition 头解析 filename，兼容 RFC 各种写法。"""
     match = re.search(
-        r"""filename\*\s*=\s*[^']+'\w*'([^;,\s]+)|filename\s*=\s*"([^"]+)"|filename\s*=\s*([^;,\s]+)""",
+        r"filename\*\s*=\s*[^']+'\w*'([^;,\s]+)"
+        r"""|filename\s*=\s*"([^"]+)"|filename\s*=\s*([^;,\s]+)""",
         content_disposition,
     )
     if match:

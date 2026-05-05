@@ -81,7 +81,10 @@ class FileService(BaseService):
             common_path = os.path.commonpath([real_path, os.path.realpath(self.local_path)])
         except ValueError:
             return False, r_directory, r_path, real_path
-        is_valid = os.path.exists(real_path) and os.path.samefile(common_path, os.path.realpath(self.local_path))
+        is_valid = (
+            os.path.exists(real_path)
+            and os.path.samefile(common_path, os.path.realpath(self.local_path))
+        )
         return is_valid, r_directory, r_path, real_path
 
     # ── GET ────────────────────────────────────────────────────

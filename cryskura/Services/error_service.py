@@ -17,7 +17,10 @@ class ErrorService(BaseService):
         super().__init__([])
         self.server_name: str = server_name
 
-    def handle(self, request: Handler, path: list[str], args: dict[str, str], method: str, status: int) -> None:
+    def handle(
+        self, request: Handler, path: list[str], args: dict[str, str],
+        method: str, status: int,
+    ) -> None:
         if method == "HEAD":
             request.send_response(status)
             request.end_headers()
@@ -28,7 +31,10 @@ class ErrorService(BaseService):
         status_str = HTTPStatus(status).phrase
         # Issue 12: HTML-escape server_name before embedding in page
         page = Error_Page.replace("CryskuraHTTP", html.escape(self.server_name))
-        page = page.replace('background: url("Cryskura.png");', f'background: url("{Cryskura_Icon}");')
+        page = page.replace(
+            'background: url("Cryskura.png");',
+            f'background: url("{Cryskura_Icon}");',
+        )
         error_msg = json.dumps(str(status) + ' ' + status_str)
         page = page.replace('let error = "";', f'let error = {error_msg};')
         request.wfile.write(page.encode())

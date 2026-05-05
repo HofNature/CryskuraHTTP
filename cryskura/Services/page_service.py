@@ -39,7 +39,10 @@ class PageService(BaseService):
             common_path = os.path.commonpath([real_path, os.path.realpath(self.local_path)])
         except ValueError:
             return False, r_directory, r_path
-        if os.path.exists(real_path) and os.path.samefile(common_path, os.path.realpath(self.local_path)):
+        if (
+            os.path.exists(real_path)
+            and os.path.samefile(common_path, os.path.realpath(self.local_path))
+        ):
             if os.path.isfile(real_path):
                 is_valid = True
             else:
@@ -50,7 +53,9 @@ class PageService(BaseService):
                         break
         return is_valid, r_directory, r_path
 
-    def handle_GET(self, request: HTTPRequestHandler, path: list[str], args: dict[str, str]) -> None:
+    def handle_GET(
+        self, request: HTTPRequestHandler, path: list[str], args: dict[str, str],
+    ) -> None:
         if not self.auth_verify(request, path, args, "GET"):
             return
         is_valid, request.directory, request.path = self.calc_path(path)
@@ -66,7 +71,9 @@ class PageService(BaseService):
                 raise e
             f.close()
 
-    def handle_HEAD(self, request: HTTPRequestHandler, path: list[str], args: dict[str, str]) -> None:
+    def handle_HEAD(
+        self, request: HTTPRequestHandler, path: list[str], args: dict[str, str],
+    ) -> None:
         if not self.auth_verify(request, path, args, "HEAD"):
             return
         is_valid, request.directory, request.path = self.calc_path(path)

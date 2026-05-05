@@ -38,12 +38,16 @@ class APIService(BaseService):
         for method in methods:
             setattr(
                 self, f"handle_{method}",
-                lambda request, path, args, method=method: self.handle_API(request, path, args, method),
+                lambda request, path, args, method=method: (
+                    self.handle_API(request, path, args, method)
+                ),
             )
         super().__init__(self.routes, auth_func)
         self.remote_path: list[str] = self.routes[0].path
 
-    def handle_API(self, request: Handler, path: list[str], args: dict[str, str], method: str) -> None:
+    def handle_API(
+        self, request: Handler, path: list[str], args: dict[str, str], method: str,
+    ) -> None:
         if not self.auth_verify(request, path, args, method):
             return
         sub_path = path[len(self.remote_path):]

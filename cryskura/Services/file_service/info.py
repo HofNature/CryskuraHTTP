@@ -53,7 +53,9 @@ def handle_info(
         try:
             entries = os.listdir(real_path)
             info["item_count"] = len(entries)
-            info["file_count"] = sum(1 for e in entries if os.path.isfile(os.path.join(real_path, e)))
+            info["file_count"] = sum(
+                1 for e in entries if os.path.isfile(os.path.join(real_path, e))
+            )
             info["dir_count"] = sum(1 for e in entries if os.path.isdir(os.path.join(real_path, e)))
         except PermissionError:
             info["item_count"] = -1
