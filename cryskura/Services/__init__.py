@@ -1,3 +1,8 @@
+"""Services 子包：所有内置服务类的统一导出入口。
+
+Services sub-package: single-import access to all built-in service classes.
+"""
+
 __all__ = [
     "BaseService", "Route", "ErrorService", "FileService",
     "RedirectService", "PageService", "APIService", "APIRouter",
