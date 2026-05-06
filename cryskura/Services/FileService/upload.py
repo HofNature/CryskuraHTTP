@@ -8,7 +8,7 @@ import logging
 
 from typing import TYPE_CHECKING
 from http import HTTPStatus
-from urllib.parse import quote
+from urllib.parse import quote, unquote
 
 if TYPE_CHECKING:
     from ...Handler import HTTPRequestHandler
@@ -18,6 +18,7 @@ logger = logging.getLogger(__name__)
 # ── 常量 ─────────────────────────────────────────────────────────────────────
 _CHUNK = 64 * 1024          # 读取块大小 64KB
 _READ_AHEAD = 128 * 1024    # 缓冲区预读上限 128KB
+_MAX_HEAD_LEN = 8 * 1024    # part 头部最大长度 8KB（B3：防内存耗尽）
 
 # 状态
 _S_HEAD = 0   # 正在读取 part 头部
@@ -46,8 +47,22 @@ def _parse_filename(header_block: bytes) -> str | None:
     """从 part 头部字节中解析 filename。"""
     m = _FILENAME_RE.search(header_block.decode("utf-8", errors="replace"))
     if m:
-        return (m.group(1) or m.group(2) or m.group(3)).strip('"') or None
+        # B5: filename* (RFC 5987) 需要 URL 解码
+        raw = m.group(1) or m.group(2) or m.group(3)
+        return unquote(raw.strip('"')) or None
     return None
+
+
+def _sanitize_filename(name: str) -> str | None:
+    """清洗文件名，返回安全名称或 None（无效）。"""
+    # B4: 拒绝空字节
+    if "\x00" in name:
+        return None
+    # 只取 basename，防止路径穿越
+    name = os.path.basename(name)
+    if not name or name in (".", ".."):
+        return None
+    return name
 
 
 # ── 流式 multipart 解析器 ────────────────────────────────────────────────────
@@ -67,7 +82,7 @@ def _read_multipart_upload(
 
     buf = bytearray()
     remaining = length
-    saved: list[str] = []
+    saved: list[str] = []          # B6: 存完整路径
     errors: list[str] = []
     seen_file = False
 
@@ -75,6 +90,7 @@ def _read_multipart_upload(
     state = _S_HEAD
     fp = None
     cur_path = ""
+    skip_body = False              # B1: 文件已存在时跳过 body 写入
     # 用于头部分块收集
     head_buf = bytearray()
     # 记录本次上传打开过的所有路径，用于异常时清理半成品文件
@@ -94,7 +110,7 @@ def _read_multipart_upload(
                 return
             buf.extend(chunk)
             remaining -= len(chunk)
-        if len(buf) == 0 and remaining == 0:
+        if remaining == 0:
             eof = True
 
     def _close_fp() -> None:
@@ -106,9 +122,9 @@ def _read_multipart_upload(
     def _cleanup_partial() -> None:
         """删除本次上传中写入一半的文件（仅删除未出现在 saved 中的）。"""
         _close_fp()
-        saved_set = set(saved)
+        saved_set = set(saved)  # B6: saved 已是完整路径
         for p in opened_paths:
-            if os.path.basename(p) not in saved_set and os.path.exists(p):
+            if p not in saved_set and os.path.exists(p):
                 try:
                     os.remove(p)
                     logger.info("Cleaned up partial upload: %s", p)
@@ -143,34 +159,50 @@ def _read_multipart_upload(
                         # 没有更多数据且头部不完整 → 截断
                         _cleanup_partial()
                         raise ConnectionError("Upload stream ended prematurely")
+                    # B3: 检查头部长度限制
+                    if len(head_buf) + len(buf) > _MAX_HEAD_LEN:
+                        _cleanup_partial()
+                        raise ValueError("Part header too large")
                     # 头部可能分块到达，把 buffer 暂存后继续读
                     head_buf.extend(buf)
                     buf.clear()
                     continue
-                # 合并分块头部
+                # 合并分块头部（也检查长度）
+                if len(head_buf) + sep > _MAX_HEAD_LEN:
+                    _cleanup_partial()
+                    raise ValueError("Part header too large")
                 head_buf.extend(buf[:sep])
-                filename = _parse_filename(bytes(head_buf))
+                raw_name = _parse_filename(bytes(head_buf))
                 buf = buf[sep + 4:]  # 跳过 \r\n\r\n
                 head_buf.clear()
 
-                if not filename:
+                if not raw_name:
                     errors.append("Missing filename in multipart part")
-                    state = _S_DONE
+                    skip_body = True
+                    state = _S_BODY
                     continue
 
                 seen_file = True
-                filename = os.path.basename(filename)
+                # B4: 清洗文件名（含 basename、null byte 检查）
+                filename = _sanitize_filename(raw_name)
+                if not filename:
+                    errors.append(f"Invalid filename: {raw_name}")
+                    skip_body = True
+                    state = _S_BODY
+                    continue
+
                 cur_path = os.path.join(dest_dir, filename)
                 try:
                     fp = open(cur_path, "xb")
                     opened_paths.add(cur_path)
+                    skip_body = False
                 except FileExistsError:
                     errors.append(f"{filename}: file already exists")
-                    state = _S_DONE
-                    continue
+                    skip_body = True      # B1: 标记跳过，但仍需消费 body
                 except OSError as e:
                     errors.append(f"{filename}: {e}")
-                    state = _S_DONE
+                    skip_body = True      # B1: 同样跳过写入
+                    state = _S_BODY
                     continue
 
                 state = _S_BODY
@@ -197,27 +229,34 @@ def _read_multipart_upload(
                         _cleanup_partial()
                         raise ConnectionError("Upload stream ended prematurely")
                     # 没找到，写出 safe 区域的数据（这部分不可能是 boundary 起始）
-                    fp.write(buf[:safe])
+                    if not skip_body:
+                        fp.write(buf[:safe])
                     buf = buf[safe:]
                     continue
 
                 # 找到了：boundary 前的数据写入文件
-                fp.write(buf[:idx])
-                saved.append(filename)
+                if not skip_body:
+                    fp.write(buf[:idx])
+                    saved.append(cur_path)      # B6: 存完整路径
                 _close_fp()
                 buf = buf[idx + bnd_len:]
                 state = _S_DONE
 
             elif state == _S_DONE:
                 # 检查 boundary 后面的分隔符
-                # --\r\n 表示结束，\r\n 表示还有下一个 part
+                # part_boundary 匹配后 buf 已跳过 \r\n--boundary
+                # 正常 part → buf 以 \r\n 开头
+                # 结束     → buf 以 -- 开头 (--boundary-- 的 --\r\n)
                 _fill()
-                if buf.startswith(b"--\r\n") or buf.startswith(b"--") or (eof and len(buf) == 0):
-                    break  # multipart 结束
+                if eof and len(buf) == 0:
+                    break
                 if buf.startswith(b"\r\n"):
                     buf = buf[2:]
-                state = _S_HEAD
-                head_buf.clear()
+                    state = _S_HEAD
+                    head_buf.clear()
+                else:
+                    # 以 -- 开头 = 结束边界；其他异常情况也视为结束
+                    break
 
     except (OSError, ConnectionError):
         _cleanup_partial()
@@ -245,7 +284,13 @@ def handle_upload(
         request.errsvc.handle(request, [], {}, "POST", HTTPStatus.LENGTH_REQUIRED)
         return
 
-    length = int(content_length)
+    # B2: 校验 Content-Length 合法性
+    try:
+        length = int(content_length)
+    except ValueError:
+        request.errsvc.handle(request, [], {}, "POST", HTTPStatus.BAD_REQUEST)
+        return
+
     if upload_limit > 0 and length > upload_limit:
         request.errsvc.handle(request, [], {}, "POST", HTTPStatus.REQUEST_ENTITY_TOO_LARGE)
         return
@@ -265,6 +310,10 @@ def handle_upload(
         logger.error("Upload parse error: %s", e)
         request.errsvc.handle(request, [], {}, "POST", HTTPStatus.BAD_REQUEST)
         return
+    except ValueError as e:
+        logger.error("Upload parse error: %s", e)
+        request.errsvc.handle(request, [], {}, "POST", HTTPStatus.BAD_REQUEST)
+        return
 
     if not saved_files and not errors:
         request.errsvc.handle(request, [], {}, "POST", HTTPStatus.BAD_REQUEST)
@@ -273,6 +322,8 @@ def handle_upload(
     if not saved_files and errors:
         if "already exists" in errors[0]:
             request.errsvc.handle(request, [], {}, "POST", HTTPStatus.CONFLICT)
+        elif "Invalid filename" in errors[0] or "Missing filename" in errors[0]:
+            request.errsvc.handle(request, [], {}, "POST", HTTPStatus.BAD_REQUEST)
         else:
             request.errsvc.handle(request, [], {}, "POST", HTTPStatus.INTERNAL_SERVER_ERROR)
         return
@@ -280,11 +331,12 @@ def handle_upload(
     # ── 返回结果 ────────────────────────────────────────────────────────
     if len(saved_files) == 1 and not errors:
         request.send_response(HTTPStatus.CREATED)
-        loc = request.path + ("/" if request.path[-1] != "/" else "") + saved_files[0]
+        loc = request.path + ("/" if request.path[-1] != "/" else "") + os.path.basename(saved_files[0])
         request.send_header("Location", quote(loc))
+        request.send_header("Content-Length", "0")
         request.end_headers()
     else:
-        result = {"saved": saved_files, "count": len(saved_files)}
+        result = {"saved": [os.path.basename(p) for p in saved_files], "count": len(saved_files)}
         if errors:
             result["errors"] = errors
         body = json.dumps(result, ensure_ascii=False).encode()

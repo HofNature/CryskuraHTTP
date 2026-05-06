@@ -194,83 +194,198 @@
 
             // ── 上传按钮 ──
             if (allowUpload) {
+                // F1: 构建已有名称的小写索引（文件 + 文件夹），用于前端去重
+                var existingNames = new Set();
+                files.forEach(function (f) { existingNames.add(f.toLowerCase()); });
+                subfolders.forEach(function (d) { existingNames.add(d.toLowerCase()); });
+
+                // F2: 大小文件拆分阈值 10MB
+                var BATCH_THRESHOLD = 10 * 1024 * 1024;
+
                 backButton.innerText = t("上传文件", "Upload");
                 backButton.addEventListener("click", function () {
-                    let input = document.createElement("input");
+                    var input = document.createElement("input");
                     input.type = "file";
                     input.multiple = true;
                     input.addEventListener("change", function () {
-                        let files = input.files;
-                        if (files.length == 0) return;
+                        var selected = input.files;
+                        if (selected.length == 0) return;
+
+                        // F1: 过滤已存在的文件（大小写不敏感）
+                        var toUpload = [];
+                        var skipped = [];
+                        for (var i = 0; i < selected.length; i++) {
+                            if (existingNames.has(selected[i].name.toLowerCase())) {
+                                skipped.push(selected[i].name);
+                            } else {
+                                toUpload.push(selected[i]);
+                            }
+                        }
+                        if (skipped.length > 0) {
+                            showToast(t(
+                                "跳过 " + skipped.length + " 个已存在的文件",
+                                "Skipped " + skipped.length + " existing file(s)"
+                            ));
+                        }
+                        if (toUpload.length == 0) {
+                            showToast(t("没有新文件需要上传", "No new files to upload"));
+                            return;
+                        }
+
                         // 检查文件大小
-                        for (let i = 0; i < files.length; i++) {
-                            if (files[i].size > maxFileSize) {
-                                if (!confirm(t("文件 " + files[i].name + " 过大，文件传输可能失败，继续？",
-                                    "File " + files[i].name + " is a bit large, file transfer may fail, continue?"))) return;
+                        for (var i = 0; i < toUpload.length; i++) {
+                            if (toUpload[i].size > maxFileSize) {
+                                if (!confirm(t("文件 " + toUpload[i].name + " 过大，文件传输可能失败，继续？",
+                                    "File " + toUpload[i].name + " is a bit large, file transfer may fail, continue?"))) return;
                             }
                         }
-                        // 构建包含所有文件的 FormData
-                        let formData = new FormData();
-                        for (let i = 0; i < files.length; i++) {
-                            formData.append("file", files[i]);
+
+                        // F2: 拆分请求 — 大文件单独请求，小文件合并为一个请求
+                        var largeFiles = [];
+                        var smallFiles = [];
+                        for (var i = 0; i < toUpload.length; i++) {
+                            if (toUpload[i].size > BATCH_THRESHOLD) {
+                                largeFiles.push(toUpload[i]);
+                            } else {
+                                smallFiles.push(toUpload[i]);
+                            }
                         }
+                        var uploadQueue = [];
+                        if (smallFiles.length > 0) uploadQueue.push(smallFiles);
+                        for (var i = 0; i < largeFiles.length; i++) {
+                            uploadQueue.push([largeFiles[i]]);
+                        }
+
+                        var totalTasks = uploadQueue.length;
+                        var completedTasks = 0;
+                        var totalSaved = 0;
+                        var totalErrors = [];
+                        // 计算总文件大小用于进度显示
+                        var totalBytes = 0;
+                        var uploadedBytes = 0;
+                        for (var i = 0; i < toUpload.length; i++) {
+                            totalBytes += toUpload[i].size;
+                        }
+
                         document.querySelector("html").style.cursor = "wait";
-                        let hint = document.getElementById("warning-text");
-                        let but = document.getElementById("input-confirm");
-                        let mask = document.querySelector(".mask");
-                        // let totalText = files.length > 1
-                        //     ? t("正在上传 " + files.length + " 个文件", "Uploading " + files.length + " files")
-                        //     : t("正在上传", "Uploading");
-                        let totalText = t("正在上传", "Uploading");
-                        hint.innerText = totalText;
+                        var hint = document.getElementById("warning-text");
+                        var but = document.getElementById("input-confirm");
+                        var mask = document.querySelector(".mask");
+                        var aborted = false;
+                        var totalText = t("正在上传", "Uploading");
+
+                        function updateProgress() {
+                            var pct = totalBytes > 0 ? (uploadedBytes / totalBytes * 100).toFixed(2) : "0.00";
+                            hint.innerText = totalText + " " + pct + "%";
+                        }
+
                         but.innerText = t("取消", "Cancel");
-                        let xhr = new XMLHttpRequest();
-                        xhr.open("POST", window.location.pathname, true);
-                        xhr.upload.onprogress = function (event) {
-                            if (event.lengthComputable) {
-                                hint.innerText = totalText + " " + (event.loaded / event.total * 100).toFixed(2) + "%";
-                            }
-                        };
-                        xhr.onload = function () {
-                            document.querySelector("html").style.cursor = "auto";
-                            if (xhr.status >= 200 && xhr.status < 300) {
-                                // 解析 JSON 响应（多文件时返回 JSON）
-                                try {
-                                    let result = JSON.parse(xhr.responseText);
-                                    let msg = t("上传成功", "Upload successful");
-                                    if (result.count) {
-                                        // msg += " (" + result.count + t(" 个文件", " files") + ")";
-                                        msg += " (" + result.count + "/" + files.length + ")";
-                                    }
-                                    if (result.errors && result.errors.length > 0) {
-                                        // msg += t("\n失败: ", "\nFailed: ") + result.errors.join(", ");
-                                        result.errors.forEach(function (err) {
-                                            let errorMsg = err.split(":");
-                                            alert(t("文件 " + errorMsg[0] + " 上传失败: " + errorMsg[1], "File " + errorMsg[0] + " failed to upload: " + errorMsg[1]));
+                        updateProgress();
+                        mask.style.display = "block";
+                        mask.style.opacity = 1;
+
+                        var activeXhr = null;
+
+                        function uploadNext() {
+                            if (aborted || completedTasks >= totalTasks) {
+                                document.querySelector("html").style.cursor = "auto";
+                                if (aborted) {
+                                    hint.innerText = t("上传已取消", "Upload cancelled");
+                                    but.innerText = t("关闭", "Close");
+                                    but.onclick = function () {
+                                        mask.style.opacity = 0;
+                                        setTimeout(function () { mask.style.display = "none"; }, 500);
+                                    };
+                                } else {
+                                    var msg = t("上传完成", "Upload complete");
+                                    msg += " (" + totalSaved + "/" + toUpload.length + ")";
+                                    if (totalErrors.length > 0) {
+                                        totalErrors.forEach(function (err) {
+                                            var parts = err.split(":");
+                                            alert(t("文件 " + parts[0] + " 上传失败: " + parts.slice(1).join(":").trim(),
+                                                "File " + parts[0] + " failed to upload: " + parts.slice(1).join(":").trim()));
                                         });
                                     }
                                     hint.innerText = msg;
-                                } catch (e) {
-                                    hint.innerText = t("上传成功", "Upload successful");
+                                    but.innerText = t("关闭", "Close");
+                                    but.onclick = function () { window.location.reload(); };
                                 }
-                                but.innerText = t("关闭", "Close");
-                                but.onclick = function () { window.location.reload(); };
-                            } else {
-                                hint.innerText = t("上传失败", "Upload failed");
-                                but.innerText = t("关闭", "Close");
-                                but.onclick = function () { mask.style.opacity = 0; setTimeout(function () { mask.style.display = "none"; }, 500); };
+                                return;
                             }
-                        };
-                        xhr.onerror = function () {
+
+                            var batch = uploadQueue[completedTasks];
+                            var batchBytes = 0;
+                            for (var i = 0; i < batch.length; i++) batchBytes += batch[i].size;
+                            var batchUploaded = 0;
+                            var formData = new FormData();
+                            for (var i = 0; i < batch.length; i++) {
+                                formData.append("file", batch[i]);
+                            }
+
+                            var xhr = new XMLHttpRequest();
+                            xhr.open("POST", window.location.pathname, true);
+                            activeXhr = xhr;
+
+                            xhr.upload.onprogress = function (event) {
+                                if (event.lengthComputable) {
+                                    uploadedBytes += (event.loaded - batchUploaded);
+                                    batchUploaded = event.loaded;
+                                    updateProgress();
+                                }
+                            };
+
+                            xhr.onload = function () {
+                                activeXhr = null;
+                                // 确保已上传字节计数准确（onprogress 可能未触发最后一次）
+                                uploadedBytes += (batchBytes - batchUploaded);
+                                if (xhr.status >= 200 && xhr.status < 300) {
+                                    if (xhr.responseText) {
+                                        try {
+                                            var result = JSON.parse(xhr.responseText);
+                                            if (result.count) totalSaved += result.count;
+                                            if (result.errors) {
+                                                for (var j = 0; j < result.errors.length; j++) {
+                                                    totalErrors.push(result.errors[j]);
+                                                }
+                                            }
+                                        } catch (e) {
+                                            totalSaved += batch.length;
+                                        }
+                                    } else {
+                                        totalSaved += batch.length;
+                                    }
+                                } else {
+                                    // 整批失败
+                                    for (var j = 0; j < batch.length; j++) {
+                                        totalErrors.push(batch[j].name + ": HTTP " + xhr.status);
+                                    }
+                                }
+                                completedTasks++;
+                                uploadNext();
+                            };
+
+                            xhr.onerror = function () {
+                                activeXhr = null;
+                                uploadedBytes += (batchBytes - batchUploaded);
+                                for (var j = 0; j < batch.length; j++) {
+                                    totalErrors.push(batch[j].name + ": network error");
+                                }
+                                completedTasks++;
+                                uploadNext();
+                            };
+
+                            xhr.send(formData);
+                        }
+
+                        but.onclick = function () {
+                            aborted = true;
+                            if (activeXhr) activeXhr.abort();
                             document.querySelector("html").style.cursor = "auto";
-                            hint.innerText = t("上传失败", "Upload failed");
-                            but.innerText = t("关闭", "Close");
-                            but.onclick = function () { mask.style.opacity = 0; setTimeout(function () { mask.style.display = "none"; }, 500); };
+                            mask.style.opacity = 0;
+                            setTimeout(function () { mask.style.display = "none"; }, 500);
                         };
-                        mask.style.display = "block";
-                        mask.style.opacity = 1;
-                        but.onclick = function () { xhr.abort(); document.querySelector("html").style.cursor = "auto"; mask.style.opacity = 0; setTimeout(function () { mask.style.display = "none"; }, 500); };
-                        xhr.send(formData);
+
+                        uploadNext();
                     });
                     input.click();
                 });
