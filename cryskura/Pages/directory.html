@@ -6,418 +6,465 @@
     <title>CryskuraHTTP</title>
     <link type="images/png" rel="shortcut icon" href="/favicon.png">
     <script>
-        /*
-            let subfolders=[
-                "文件夹1","文件夹2","文件夹3"
-            ]
-            let files=[
-                "文件1","文件2","文件3"
-            ]
-        */
-        subfolders = JSON.parse(subfolders);
-        files = JSON.parse(files);
         document.addEventListener("DOMContentLoaded", function () {
-            // 获取浏览器偏好，翻译页内字符
 
-            let maxFileSize = 1024 * 1024 * 64;// 64MB
-            let backButton = document.getElementById("back-button");// 返回上一级
+            let maxFileSize = 1024 * 1024 * 64;
+            let backButton = document.getElementById("back-button");
             let lang = navigator.language;
-            //let isEnglish = (lang && !lang.includes("zh"));
             let isEnglish = (lang && lang.indexOf("zh") == -1);
 
+            // ── 工具函数 ──
+            function t(zh, en) { return isEnglish ? en : zh; }
+            function currentPath(name) {
+                var p = window.location.pathname;
+                return (p[p.length - 1] === "/" ? p : p + "/") + encodeURIComponent(name);
+            }
+
+            // ── 右键菜单 ──
+            var ctxMenu = document.getElementById("context-menu");
+            var ctxTarget = null; // {name, isDir}
+
+            function showContextMenu(x, y, target) {
+                ctxTarget = target;
+                ctxMenu.style.display = "block";
+                // 防止超出视口
+                var mw = ctxMenu.offsetWidth, mh = ctxMenu.offsetHeight;
+                var ww = window.innerWidth, wh = window.innerHeight;
+                ctxMenu.style.left = (x + mw > ww ? ww - mw - 4 : x) + "px";
+                ctxMenu.style.top = (y + mh > wh ? wh - mh - 4 : y) + "px";
+            }
+            function hideContextMenu() {
+                ctxMenu.style.display = "none";
+                ctxTarget = null;
+            }
+            document.addEventListener("click", hideContextMenu);
+            document.addEventListener("contextmenu", function (e) {
+                // 不在 item 上右键时隐藏
+                if (!e.target.closest(".item")) hideContextMenu();
+            });
+
+            // 菜单项事件
+            document.getElementById("ctx-info").addEventListener("click", function () {
+                var target = ctxTarget;
+                hideContextMenu();
+                if (!target) return;
+                showFileInfo(target.name, target.isDir);
+            });
+            document.getElementById("ctx-copy").addEventListener("click", function () {
+                var target = ctxTarget;
+                hideContextMenu();
+                if (!target) return;
+                var fullPath = location.origin + currentPath(target.name);
+                navigator.clipboard.writeText(fullPath).then(function () {
+                    showToast(t("路径已复制", "Path copied"));
+                }, function () {
+                    // fallback
+                    var ta = document.createElement("textarea");
+                    ta.value = fullPath;
+                    document.body.appendChild(ta);
+                    ta.select();
+                    document.execCommand("copy");
+                    document.body.removeChild(ta);
+                    showToast(t("路径已复制", "Path copied"));
+                });
+            });
+            document.getElementById("ctx-zip").addEventListener("click", function () {
+                var target = ctxTarget;
+                hideContextMenu();
+                if (!target) return;
+                var url = currentPath(target.name) + "?zip";
+                var a = document.createElement("a");
+                a.href = url;
+                a.download = "";
+                document.body.appendChild(a);
+                a.click();
+                document.body.removeChild(a);
+            });
+
+            // ── 文件信息面板 ──
+            var infoPanel = document.getElementById("info-panel");
+            var infoOverlay = document.getElementById("info-overlay");
+
+            function formatSize(bytes) {
+                if (bytes === 0) return "0 B";
+                var units = ["B", "KB", "MB", "GB", "TB"];
+                var i = Math.floor(Math.log(bytes) / Math.log(1024));
+                return (bytes / Math.pow(1024, i)).toFixed(i > 0 ? 2 : 0) + " " + units[i];
+            }
+
+            function showFileInfo(name, isDir) {
+                var url = currentPath(name) + "?info";
+                infoOverlay.style.display = "flex";
+                document.getElementById("info-title").innerText = name;
+                document.getElementById("info-body").innerHTML =
+                    '<div style="text-align:center;padding:20px;">' + t("加载中...", "Loading...") + '</div>';
+                document.getElementById("info-body").dataset.path = currentPath(name);
+
+                fetch(url).then(function (r) {
+                    if (!r.ok) throw new Error(r.status);
+                    return r.json();
+                }).then(function (d) {
+                    // Issue 2: use DOM API (textContent) for all value assignment — no innerHTML
+                    // string concatenation. textContent automatically sanitises any HTML, so
+                    // a separate esc() helper is unnecessary.
+                    var rows = [
+                        [t("名称", "Name"), d.name == null ? "" : String(d.name)],
+                        [t("路径", "Path"), d.path == null ? "" : String(d.path)],
+                        [t("类型", "Type"), d.is_dir ? t("文件夹", "Directory") : String(d.mime_type || t("文件", "File"))],
+                        [t("大小", "Size"), formatSize(d.size)],
+                        [t("修改时间", "Modified"), d.modified ? String(d.modified).replace("T", " ").replace("Z", " UTC") : "-"],
+                        [d.is_dir ? t("子项数", "Items") : null, d.is_dir ? (String(parseInt(d.file_count, 10) || 0) + t(" 个文件, ", " files, ") + String(parseInt(d.dir_count, 10) || 0) + t(" 个文件夹", " folders")) : null],
+                        [d.permissions != null ? t("权限", "Permissions") : null, d.permissions == null ? "" : String(d.permissions)],
+                    ];
+                    var table = document.createElement("table");
+                    table.className = "info-table";
+                    rows.forEach(function (row) {
+                        if (row[0] === null) return;
+                        var tr = document.createElement("tr");
+                        var tdKey = document.createElement("td");
+                        tdKey.className = "info-key";
+                        tdKey.textContent = row[0];
+                        var tdVal = document.createElement("td");
+                        tdVal.className = "info-val";
+                        tdVal.textContent = row[1];
+                        tr.appendChild(tdKey);
+                        tr.appendChild(tdVal);
+                        table.appendChild(tr);
+                    });
+                    var infoBody = document.getElementById("info-body");
+                    infoBody.innerHTML = "";
+                    infoBody.appendChild(table);
+                }).catch(function () {
+                    document.getElementById("info-body").innerHTML =
+                        '<div style="text-align:center;padding:20px;color:#c00;">' + t("获取信息失败", "Failed to load info") + '</div>';
+                });
+            }
+            document.getElementById("info-close").addEventListener("click", function () {
+                infoOverlay.style.display = "none";
+            });
+            infoOverlay.addEventListener("click", function (e) {
+                if (e.target === infoOverlay) infoOverlay.style.display = "none";
+            });
+            document.getElementById("info-download-zip").addEventListener("click", function () {
+                var p = document.getElementById("info-body").dataset.path;
+                if (p) {
+                    var a = document.createElement("a");
+                    a.href = p + "?zip";
+                    a.download = "";
+                    document.body.appendChild(a);
+                    a.click();
+                    document.body.removeChild(a);
+                }
+                infoOverlay.style.display = "none";
+            });
+            document.getElementById("info-copy-path").addEventListener("click", function () {
+                var p = document.getElementById("info-body").dataset.path;
+                if (p) {
+                    navigator.clipboard.writeText(location.origin + p).then(function () {
+                        showToast(t("路径已复制", "Path copied"));
+                    });
+                }
+            });
+
+            // ── Toast 提示 ──
+            function showToast(msg) {
+                var toast = document.createElement("div");
+                toast.className = "toast";
+                toast.innerText = msg;
+                document.body.appendChild(toast);
+                requestAnimationFrame(function () { toast.classList.add("toast-show"); });
+                setTimeout(function () {
+                    toast.classList.remove("toast-show");
+                    setTimeout(function () { toast.remove(); }, 300);
+                }, 1500);
+            }
+
+            // ── 上传按钮 ──
             if (allowUpload) {
-                backButton.innerText = isEnglish ? "Upload" : "上传文件";
+                backButton.innerText = t("上传文件", "Upload");
                 backButton.addEventListener("click", function () {
-                    let input=document.createElement("input");
-                    input.type="file";
-                    input.multiple=true;
-                    input.addEventListener("change",function(){
-                        let files=input.files;
-                        if (files.length==0){
-                            return;
+                    let input = document.createElement("input");
+                    input.type = "file";
+                    input.multiple = true;
+                    input.addEventListener("change", function () {
+                        let files = input.files;
+                        if (files.length == 0) return;
+                        // 检查文件大小
+                        for (let i = 0; i < files.length; i++) {
+                            if (files[i].size > maxFileSize) {
+                                if (!confirm(t("文件 " + files[i].name + " 过大，文件传输可能失败，继续？",
+                                    "File " + files[i].name + " is a bit large, file transfer may fail, continue?"))) return;
+                            }
                         }
-                        for(let i=0;i<files.length;i++){
-                            file=files[i];
-                            if (file.size>maxFileSize){
-                                // 文件过大易失败
-                                if (isEnglish){
-                                    if (!confirm("File "+file.name+" is a bit large, file transfer may fail, continue?")){
-                                        return;
-                                    }
-                                }
-                                else{
-                                    if (!confirm("文件 "+file.name+" 过大，文件传输可能失败，继续？")){
-                                        return;
-                                    }
-                                }
-                            }
-                            let formData=new FormData();
-                            formData.append("file",file);
-                            document.querySelector("html").style.cursor="wait";
-                            let hint=document.getElementById("warning-text");
-                            let but=document.getElementById("input-confirm");
-                            let mask=document.querySelector(".mask");
-                            if (isEnglish){
-                                hint.innerText="Uploading";
-                                but.innerText="Cancel";
-                            }
-                            else{
-                                hint.innerText="正在上传";
-                                but.innerText="取消";
-                            }
-                            const controller = new AbortController();
-                            const signal = controller.signal;
-
-                            but.onclick=function(){
-                                // 取消上传
-                                if (xhr) xhr.abort();
-                                document.querySelector("html").style.cursor="auto";
-                                mask.style.opacity=0;
-                                setTimeout(function(){
-                                    mask.style.display="none";
-                                },500);
-                            }
-                            mask.style.display="block";
-                            mask.style.opacity=1;
-
-                            // 使用 XMLHttpRequest 以便获取上传进度
-                            let xhr = new XMLHttpRequest();
-                            xhr.open("POST", window.location.pathname, true);
-                            xhr.upload.onprogress = function(event) {
-                                if (event.lengthComputable) {
-                                    let percent = event.loaded / event.total * 100;
-                                    if (isEnglish){
-                                        hint.innerText = "Uploading " + percent.toFixed(2) + "%";
-                                    } else {
-                                        hint.innerText = "正在上传 " + percent.toFixed(2) + "%";
-                                    }
-                                }
-                            };
-                            xhr.onload = function() {
-                                document.querySelector("html").style.cursor="auto";
-                                if (xhr.status >= 200 && xhr.status < 300) {
-                                    if (isEnglish){
-                                        hint.innerText="Upload successful";
-                                        but.innerText="Close";
-                                    }
-                                    else{
-                                        hint.innerText="上传成功";
-                                        but.innerText="关闭";
-                                    }
-                                    but.onclick=function(){
-                                        window.location.reload();
-                                    }
-                                } else {
-                                    if (isEnglish){
-                                        alert("Upload failed");
-                                        hint.innerText="Upload failed";
-                                        but.innerText="Close";
-                                    }
-                                    else{
-                                        alert("上传失败");
-                                        hint.innerText="上传失败";
-                                        but.innerText="关闭";
-                                    }
-                                    but.onclick=function(){
-                                        mask.style.opacity=0;
-                                        setTimeout(function(){
-                                            mask.style.display="none";
-                                        },500);
-                                    }
-                                }
-                            };
-                            xhr.onerror = function() {
-                                document.querySelector("html").style.cursor="auto";
-                                if (isEnglish){
-                                    alert("Upload failed");
-                                    hint.innerText="Upload failed";
-                                    but.innerText="Close";
-                                }
-                                else{
-                                    alert("上传失败");
-                                    hint.innerText="上传失败";
-                                    but.innerText="关闭";
-                                }
-                                but.onclick=function(){
-                                    mask.style.opacity=0;
-                                    setTimeout(function(){
-                                        mask.style.display="none";
-                                    },500);
-                                }
-                            };
-                            xhr.send(formData);
+                        // 构建包含所有文件的 FormData
+                        let formData = new FormData();
+                        for (let i = 0; i < files.length; i++) {
+                            formData.append("file", files[i]);
                         }
+                        document.querySelector("html").style.cursor = "wait";
+                        let hint = document.getElementById("warning-text");
+                        let but = document.getElementById("input-confirm");
+                        let mask = document.querySelector(".mask");
+                        // let totalText = files.length > 1
+                        //     ? t("正在上传 " + files.length + " 个文件", "Uploading " + files.length + " files")
+                        //     : t("正在上传", "Uploading");
+                        let totalText = t("正在上传", "Uploading");
+                        hint.innerText = totalText;
+                        but.innerText = t("取消", "Cancel");
+                        let xhr = new XMLHttpRequest();
+                        xhr.open("POST", window.location.pathname, true);
+                        xhr.upload.onprogress = function (event) {
+                            if (event.lengthComputable) {
+                                hint.innerText = totalText + " " + (event.loaded / event.total * 100).toFixed(2) + "%";
+                            }
+                        };
+                        xhr.onload = function () {
+                            document.querySelector("html").style.cursor = "auto";
+                            if (xhr.status >= 200 && xhr.status < 300) {
+                                // 解析 JSON 响应（多文件时返回 JSON）
+                                try {
+                                    let result = JSON.parse(xhr.responseText);
+                                    let msg = t("上传成功", "Upload successful");
+                                    if (result.count) {
+                                        // msg += " (" + result.count + t(" 个文件", " files") + ")";
+                                        msg += " (" + result.count + "/" + files.length + ")";
+                                    }
+                                    if (result.errors && result.errors.length > 0) {
+                                        // msg += t("\n失败: ", "\nFailed: ") + result.errors.join(", ");
+                                        result.errors.forEach(function (err) {
+                                            let errorMsg = err.split(":");
+                                            alert(t("文件 " + errorMsg[0] + " 上传失败: " + errorMsg[1], "File " + errorMsg[0] + " failed to upload: " + errorMsg[1]));
+                                        });
+                                    }
+                                    hint.innerText = msg;
+                                } catch (e) {
+                                    hint.innerText = t("上传成功", "Upload successful");
+                                }
+                                but.innerText = t("关闭", "Close");
+                                but.onclick = function () { window.location.reload(); };
+                            } else {
+                                hint.innerText = t("上传失败", "Upload failed");
+                                but.innerText = t("关闭", "Close");
+                                but.onclick = function () { mask.style.opacity = 0; setTimeout(function () { mask.style.display = "none"; }, 500); };
+                            }
+                        };
+                        xhr.onerror = function () {
+                            document.querySelector("html").style.cursor = "auto";
+                            hint.innerText = t("上传失败", "Upload failed");
+                            but.innerText = t("关闭", "Close");
+                            but.onclick = function () { mask.style.opacity = 0; setTimeout(function () { mask.style.display = "none"; }, 500); };
+                        };
+                        mask.style.display = "block";
+                        mask.style.opacity = 1;
+                        but.onclick = function () { xhr.abort(); document.querySelector("html").style.cursor = "auto"; mask.style.opacity = 0; setTimeout(function () { mask.style.display = "none"; }, 500); };
+                        xhr.send(formData);
                     });
                     input.click();
                 });
-            }
-            else {
-                backButton.innerText = isEnglish ? "Parent Directory" : "返回上一级";
+            } else {
+                backButton.innerText = t("返回上一级", "Parent Directory");
                 backButton.addEventListener("click", function () {
-                    if (window.location.pathname == "/") {
-                        return;
-                    }
-                    parentPath = window.location.pathname.split("/").slice(0, -1).join("/");
-                    if (parentPath == "") {
-                        parentPath = "/";
-                    }
-                    window.location.href = parentPath;
+                    if (window.location.pathname == "/") return;
+                    var p = window.location.pathname.split("/").slice(0, -1).join("/");
+                    window.location.href = p || "/";
                 });
             }
 
-
-            let path = window.location.pathname.split("/");
-            let titleElement = document.getElementById("title-text");
-            let item = document.createElement("span");
+            // ── 面包屑 ──
+            var path = window.location.pathname.split("/");
+            var titleElement = document.getElementById("title-text");
             titleElement.innerHTML = "";
-            if (path[path.length - 1] == "") {
-                path = path.slice(0, -1);
-            }
-            for (let i = 0; i < path.length; i++) {
-                let item = document.createElement("span");
-                item.innerText = decodeURIComponent(path[i]);
-                if (i != path.length - 1 || path.length == 1) {
-                    item.innerText += "/";
-                }
-                if (i != path.length - 1) {
-                    item.onclick = function () {
-                        if (i == 0) {
-                            window.location.href = "/";
-                        } else {
-                            let newPath = window.location.pathname.split("/").slice(0, i + 1).join("/");
-                            window.location.href = newPath;
-                        }
+            if (path[path.length - 1] == "") path = path.slice(0, -1);
+            for (var i = 0; i < path.length; i++) {
+                (function (idx) {
+                    var span = document.createElement("span");
+                    span.innerText = decodeURIComponent(path[idx]);
+                    if (idx != path.length - 1 || path.length == 1) span.innerText += "/";
+                    if (idx != path.length - 1) {
+                        span.onclick = function () {
+                            window.location.href = idx == 0 ? "/" : path.slice(0, idx + 1).join("/");
+                        };
                     }
-                }
-                item.classList.add("title-item");
-                titleElement.appendChild(item);
+                    span.classList.add("title-item");
+                    titleElement.appendChild(span);
+                })(i);
             }
 
-            let subfolderContainer = document.querySelector(".subfolders");
-            let fileContainer = document.querySelector(".files");
+            // ── 文件列表 ──
+            var subfolderContainer = document.querySelector(".subfolders");
+            var fileContainer = document.querySelector(".files");
 
             subfolders.forEach(function (subfolder) {
-                let item = document.createElement("div");
+                var item = document.createElement("div");
                 item.classList.add("item");
-                //item.innerHTML = `<span class="icon-folder"></span><span class="item-name">${subfolder}</span>`;
-                item.innerHTML = '<span class="icon-folder"></span><span class="item-name">' + document.createTextNode(subfolder).textContent + '</span>';
+                // Issue 3: build DOM nodes instead of concatenating into innerHTML
+                var iconSpan = document.createElement("span");
+                iconSpan.className = "icon-folder";
+                var nameSpan = document.createElement("span");
+                nameSpan.className = "item-name";
+                nameSpan.textContent = subfolder;
+                item.appendChild(iconSpan);
+                item.appendChild(nameSpan);
                 item.addEventListener("click", function () {
-                    if (window.location.pathname[window.location.pathname.length - 1] == "/") {
-                        window.location.href = '//' + window.location.host + window.location.pathname + subfolder;
-                    }
-                    else {
-                        window.location.href = '//' + window.location.host + window.location.pathname + "/" + subfolder;
-                    }
+                    window.location.href = currentPath(subfolder);
+                });
+                item.addEventListener("contextmenu", function (e) {
+                    e.preventDefault();
+                    showContextMenu(e.clientX, e.clientY, { name: subfolder, isDir: true });
                 });
                 subfolderContainer.appendChild(item);
             });
 
             files.forEach(function (file) {
-                let item = document.createElement("div");
+                var item = document.createElement("div");
                 item.classList.add("item");
-                //item.innerHTML = `<span class="icon-file"></span><span class="item-name">${file}</span>`;
-                item.innerHTML = '<span class="icon-file"></span><span class="item-name">' + document.createTextNode(file).textContent + '</span>';
+                // Issue 3: build DOM nodes instead of concatenating into innerHTML
+                var iconSpan = document.createElement("span");
+                iconSpan.className = "icon-file";
+                var nameSpan = document.createElement("span");
+                nameSpan.className = "item-name";
+                nameSpan.textContent = file;
+                item.appendChild(iconSpan);
+                item.appendChild(nameSpan);
                 item.addEventListener("click", function () {
-                    if (window.location.pathname[window.location.pathname.length - 1] == "/") {
-                        window.location.href = '//' + window.location.host + window.location.pathname + file;
-                    }
-                    else {
-                        window.location.href = '//' + window.location.host + window.location.pathname + "/" + file;
-                    }
+                    window.location.href = currentPath(file);
+                });
+                item.addEventListener("contextmenu", function (e) {
+                    e.preventDefault();
+                    showContextMenu(e.clientX, e.clientY, { name: file, isDir: false });
                 });
                 fileContainer.appendChild(item);
             });
         });
     </script>
     <style>
-        body {
-            background: #0001;
-        }
-
+        body { background: #0001; }
         .container {
-            border: 2px solid #bbb;
-            border-radius: 8px;
-            background: #fff;
-            left: 32px;
-            right: 32px;
-            top: 32px;
-            bottom: 32px;
-            box-shadow: 2px 2px 2px 2px #0002;
-            position: absolute;
-            padding: 15px;
-            display: flex;
-            flex-direction: column;
+            border: 2px solid #bbb; border-radius: 8px; background: #fff;
+            left: 32px; right: 32px; top: 32px; bottom: 32px;
+            box-shadow: 2px 2px 2px 2px #0002; position: absolute;
+            padding: 15px; display: flex; flex-direction: column;
         }
-
         #title-text {
-            overflow: hidden;
-            white-space: nowrap;
-            text-overflow: ellipsis;
+            overflow: hidden; white-space: nowrap; text-overflow: ellipsis;
             max-width: calc(100% - 120px);
         }
-
-        .title-item:hover {
-            padding: 2px 5px;
-            margin: 0px 3px;
-            background: #0001;
-            border-radius: 8px;
-            cursor: pointer;
-        }
-
-        .title-item {
-            transition: 0.5s;
-        }
-
+        .title-item:hover { padding: 2px 5px; margin: 0 3px; background: #0001; border-radius: 8px; cursor: pointer; }
+        .title-item { transition: 0.5s; }
         .icon-folder {
             background: url("data:image/svg+xml,%3Csvg width='24' height='24' viewBox='0 0 48 48' fill='none' xmlns='http://www.w3.org/2000/svg'%3E%3Cpath d='M5 8C5 6.89543 5.89543 6 7 6H19L24 12H41C42.1046 12 43 12.8954 43 14V40C43 41.1046 42.1046 42 41 42H7C5.89543 42 5 41.1046 5 40V8Z' fill='none' stroke='%23444' stroke-width='3' stroke-linejoin='round'/%3E%3Cpath d='M43 22H5' stroke='%23444' stroke-width='3' stroke-linejoin='round'/%3E%3Cpath d='M5 16V28' stroke='%23444' stroke-width='3' stroke-linecap='round' stroke-linejoin='round'/%3E%3Cpath d='M43 16V28' stroke='%23444' stroke-width='3' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E");
-            height: 21px;
-            background-repeat: no-repeat;
-            background-size: contain;
-            width: 21px;
-            background-position: center;
-            margin-right: 5px;
+            height: 21px; background-repeat: no-repeat; background-size: contain;
+            width: 21px; background-position: center; margin-right: 5px;
         }
-
         .icon-file {
             background: url("data:image/svg+xml,%3Csvg width='24' height='24' viewBox='0 0 48 48' fill='none' xmlns='http://www.w3.org/2000/svg'%3E%3Cpath d='M10 44H38C39.1046 44 40 43.1046 40 42V14H30V4H10C8.89543 4 8 4.89543 8 6V42C8 43.1046 8.89543 44 10 44Z' fill='none' stroke='%23444' stroke-width='3' stroke-linecap='round' stroke-linejoin='round'/%3E%3Cpath d='M30 4L40 14' stroke='%23444' stroke-width='3' stroke-linecap='round' stroke-linejoin='round'/%3E%3Cpath d='M17 29L23 34L32 23' stroke='%23444' stroke-width='3' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E");
-            height: 21px;
-            background-repeat: no-repeat;
-            background-size: contain;
-            width: 21px;
-            background-position: center;
-            margin-right: 5px;
+            height: 21px; background-repeat: no-repeat; background-size: contain;
+            width: 21px; background-position: center; margin-right: 5px;
         }
-
-        .flex-span {
-            flex-grow: 1;
-        }
-
+        .flex-span { flex-grow: 1; }
         .file-list {
-            border: 1px solid #0004;
-            border-radius: 4px;
-            padding: 10px;
-            flex-grow: 1;
-            display: flex;
-            flex-direction: column;
-            overflow: auto;
+            border: 1px solid #0004; border-radius: 4px; padding: 10px;
+            flex-grow: 1; display: flex; flex-direction: column; overflow: auto;
         }
-
-        .title-bar {
-            margin-bottom: 10px;
-            padding: 0 5px;
-            display: flex;
-        }
-
-        .files,
-        .subfolders {
-            display: grid;
-            grid-gap: 10px;
+        .title-bar { margin-bottom: 10px; padding: 0 5px; display: flex; }
+        .files, .subfolders {
+            display: grid; grid-gap: 10px;
             grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
         }
-
-        .files {
-            margin-top: 10px;
-        }
-
+        .files { margin-top: 10px; }
         .item {
-            padding: 5px 10px;
-            border-radius: 4px;
-            transition: 0.5s;
-            width: fit-content;
-            max-width: calc(100% - 16px);
-            position: relative;
+            padding: 5px 10px; border-radius: 4px; transition: 0.5s;
+            width: fit-content; max-width: calc(100% - 16px); position: relative;
         }
-
-        .item:hover {
-            background: #0001;
-            cursor: pointer;
-        }
-
-        #back-button {
-            color: #0009;
-            cursor: pointer;
-        }
-
+        .item:hover { background: #0001; cursor: pointer; }
+        #back-button { color: #0009; cursor: pointer; }
         .item-name {
-            overflow: hidden;
-            white-space: nowrap;
-            text-overflow: ellipsis;
-            padding-left: 28px;
-            max-width: calc(100% - 28px);
-            display: inline-block;
+            overflow: hidden; white-space: nowrap; text-overflow: ellipsis;
+            padding-left: 28px; max-width: calc(100% - 28px); display: inline-block;
         }
-
-        .item .icon-folder,
-        .item .icon-file {
-            position: absolute;
+        .item .icon-folder, .item .icon-file { position: absolute; }
+        .logo {
+            background: url("Cryskura.png"); background-repeat: no-repeat;
+            background-position: center; background-size: contain;
+            width: calc(100% - 32px); height: 128px;
+            top: calc(50% - 64px - 15px); opacity: 0.25; position: absolute;
         }
-        
-        .logo{
-            background: url("Cryskura.png");
-            background-repeat: no-repeat;
-            background-position: center;
-            background-size: contain;
-            width: calc(100% - 32px);
-            height: 128px;
-            top: calc(50% - 64px - 15px);
-            opacity: 0.25;
-            position: absolute;
-        }
-
         .mask {
-            display: none;
-            opacity: 0;
-            transition: 0.5s;
-            position: fixed;
-            top: 0;
-            left: 0;
-            right: 0;
-            bottom: 0;
-            background: #0009;
-            z-index: 100;
+            display: none; opacity: 0; transition: 0.5s; position: fixed;
+            top: 0; left: 0; right: 0; bottom: 0; background: #0009; z-index: 100;
         }
         .mask-content {
-            position: absolute;
-            width: 260px;
-            height: 120px;
-            top: calc(50% - 60px);
-            left: calc(50% - 130px);
-            background: #fff;
-            border: 2px solid #000;
-            border-radius: 8px;
-            display: flex;
-            flex-direction: column;
+            position: absolute; width: 260px; height: 120px;
+            top: calc(50% - 60px); left: calc(50% - 130px);
+            background: #fff; border: 2px solid #000; border-radius: 8px;
+            display: flex; flex-direction: column;
         }
-        #warning-text {
-            text-align: center;
-            font-size: 24px;
-            flex-grow: 1;
-            padding-top: 16px;
-        }
-        .flex-span {
-            flex-grow: 1;
-        }
-        .alert-bar {
-            display: flex;
-            flex-direction: row;
-            margin: 16px 32px;
-        }
+        #warning-text { text-align: center; font-size: 24px; flex-grow: 1; padding-top: 16px; }
+        .alert-bar { display: flex; flex-direction: row; margin: 16px 32px; }
         button#input-confirm {
-            border: #0009 3px solid;
-            border-radius: 100px;
-            padding: 6px 16px;
-            font-size: 16px;
-            background: #fff;
-            transition: 1s;
+            border: #0009 3px solid; border-radius: 100px;
+            padding: 6px 16px; font-size: 16px; background: #fff; transition: 1s;
         }
-        button#input-confirm:hover {
-            background: #0001;
-            cursor: pointer;
+        button#input-confirm:hover { background: #0001; cursor: pointer; }
+
+        /* ── 右键菜单 ── */
+        #context-menu {
+            display: none; position: fixed; z-index: 200;
+            background: #fff; border: 1px solid #ccc; border-radius: 6px;
+            box-shadow: 0 4px 16px rgba(0,0,0,0.15); min-width: 100px;
+            padding: 4px 0; font-size: 14px;
         }
+        .ctx-item {
+            padding: 8px 16px; cursor: pointer; display: flex; align-items: center; gap: 8px;
+            transition: background 0.15s;justify-content: center;
+        }
+        .ctx-item:hover { background: #f0f0f0; }
+
+        /* ── 文件信息面板 ── */
+        #info-overlay {
+            display: none; position: fixed; top: 0; left: 0; right: 0; bottom: 0;
+            background: rgba(0,0,0,0.4); z-index: 300;
+            align-items: center; justify-content: center;
+        }
+        #info-panel {
+            background: #fff; border-radius: 10px; box-shadow: 0 8px 32px rgba(0,0,0,0.2);
+            width: 420px; max-width: 90vw; max-height: 80vh; overflow: auto;
+        }
+        .info-header {
+            padding: 16px 20px; border-bottom: 1px solid #eee;
+            display: flex; align-items: center; justify-content: space-between;
+        }
+        .info-header h3 { margin: 0; font-size: 16px; word-break: break-all; }
+        .info-close-btn {
+            background: none; border: none; font-size: 20px; cursor: pointer;
+            color: #888; padding: 0 4px; line-height: 1;
+        }
+        .info-close-btn:hover { color: #333; }
+        .info-table { width: 100%; border-collapse: collapse; }
+        .info-table td { padding: 8px 20px; border-bottom: 1px solid #f0f0f0; font-size: 13px; }
+        .info-key { color: #666; width: 90px; white-space: nowrap; }
+        .info-val { color: #222; word-break: break-all; }
+        .info-actions {
+            padding: 12px 20px; border-top: 1px solid #eee;
+            display: flex; gap: 8px; justify-content: flex-end;
+        }
+        .info-actions button {
+            padding: 6px 14px; border: 1px solid #ccc; border-radius: 4px;
+            background: #fff; cursor: pointer; font-size: 13px; transition: 0.2s;
+        }
+        .info-actions button:hover { background: #f5f5f5; }
+        .info-actions .btn-primary { background: #2563eb; color: #fff; border-color: #2563eb; }
+        .info-actions .btn-primary:hover { background: #1d4ed8; }
+
+        /* ── Toast ── */
+        .toast {
+            position: fixed; bottom: 30px; left: 50%; transform: translateX(-50%) translateY(20px);
+            background: #333; color: #fff; padding: 8px 20px; border-radius: 6px;
+            font-size: 14px; opacity: 0; transition: all 0.3s; z-index: 400;
+            pointer-events: none;
+        }
+        .toast-show { opacity: 1; transform: translateX(-50%) translateY(0); }
     </style>
-    <!--
-        禁止缓存
-        -->
     <meta http-equiv="Expires" content="0">
     <meta http-equiv="Pragma" content="no-cache">
     <meta http-equiv="Cache-control" content="no-cache">
@@ -434,23 +481,47 @@
             <span id="back-button">返回上一级</span>
         </div>
         <div class="file-list">
-            <div class="subfolders">
-
-            </div>
-            <div class="files">
-
-            </div>
+            <div class="subfolders"></div>
+            <div class="files"></div>
         </div>
     </div>
+
+    <!-- 上传遮罩 -->
     <div class="mask">
         <div class="mask-content">
-            <div id="warning-text">
-                <span>出现错误</span>
-            </div>
+            <div id="warning-text"><span>出现错误</span></div>
             <div class="alert-bar">
                 <div class="flex-span"></div>
                 <button id="input-confirm">返回首页</button>
                 <div class="flex-span"></div>
+            </div>
+        </div>
+    </div>
+
+    <!-- 右键菜单 -->
+    <div id="context-menu">
+        <div class="ctx-item" id="ctx-info">
+            <span id="ctx-info-text">详细信息</span>
+        </div>
+        <div class="ctx-item" id="ctx-copy">
+            <span id="ctx-copy-text">复制路径</span>
+        </div>
+        <div class="ctx-item" id="ctx-zip">
+            <span id="ctx-zip-text">打包下载</span>
+        </div>
+    </div>
+
+    <!-- 文件信息面板 -->
+    <div id="info-overlay">
+        <div id="info-panel">
+            <div class="info-header">
+                <h3 id="info-title"></h3>
+                <button class="info-close-btn" id="info-close">✕</button>
+            </div>
+            <div id="info-body"></div>
+            <div class="info-actions">
+                <button id="info-copy-path" id="info-copy-btn">复制路径</button>
+                <button id="info-download-zip" class="btn-primary">打包下载</button>
             </div>
         </div>
     </div>
