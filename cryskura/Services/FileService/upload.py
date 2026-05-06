@@ -94,6 +94,8 @@ def _read_multipart_upload(
                 return
             buf.extend(chunk)
             remaining -= len(chunk)
+        if len(buf) == 0 and remaining == 0:
+            eof = True
 
     def _close_fp() -> None:
         nonlocal fp
