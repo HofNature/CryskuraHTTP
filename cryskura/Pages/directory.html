@@ -10,8 +10,21 @@
 
             let maxFileSize = 1024 * 1024 * 64;
             let backButton = document.getElementById("back-button");
+            let packButton = document.getElementById("pack-button");
             let lang = navigator.language;
             let isEnglish = (lang && lang.indexOf("zh") == -1);
+
+            // ── 打包下载 ──
+            packButton.innerText = t("打包下载", "Pack");
+            packButton.addEventListener("click", function () {
+                let url = window.location.pathname + "?zip";
+                let a = document.createElement("a");
+                a.href = url;
+                a.download = "";
+                document.body.appendChild(a);
+                a.click();
+                document.body.removeChild(a);
+            });
 
             // ── 工具函数 ──
             function t(zh, en) { return isEnglish ? en : zh; }
@@ -262,7 +275,7 @@
                     input.click();
                 });
             } else {
-                backButton.innerText = t("返回上一级", "Parent Directory");
+                backButton.innerText = t("返回父级", "Parent");
                 backButton.addEventListener("click", function () {
                     if (window.location.pathname == "/") return;
                     var p = window.location.pathname.split("/").slice(0, -1).join("/");
@@ -347,7 +360,7 @@
         }
         #title-text {
             overflow: hidden; white-space: nowrap; text-overflow: ellipsis;
-            max-width: calc(100% - 120px);
+            max-width: calc(100% - 180px);
         }
         .title-item:hover { padding: 2px 5px; margin: 0 3px; background: #0001; border-radius: 8px; cursor: pointer; }
         .title-item { transition: 0.5s; }
@@ -378,6 +391,7 @@
         }
         .item:hover { background: #0001; cursor: pointer; }
         #back-button { color: #0009; cursor: pointer; }
+        #pack-button { color: #0009; cursor: pointer; margin-right: 10px;}
         .item-name {
             overflow: hidden; white-space: nowrap; text-overflow: ellipsis;
             padding-left: 28px; max-width: calc(100% - 28px); display: inline-block;
@@ -478,7 +492,8 @@
             <span class="icon-folder"></span>
             <span id="title-text">CryskuraHTTP</span>
             <span class="flex-span"></span>
-            <span id="back-button">返回上一级</span>
+            <span id="pack-button">打包下载</span>
+            <span id="back-button">返回上级</span>
         </div>
         <div class="file-list">
             <div class="subfolders"></div>

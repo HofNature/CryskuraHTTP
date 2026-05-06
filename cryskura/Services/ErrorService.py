@@ -15,10 +15,13 @@ class ErrorService(BaseService):
             request.end_headers()
             return
         request.send_response(status)
-        request.send_header("Content-Type", "text/html")
-        request.end_headers()
-        statusStr=HTTPStatus(status).phrase
-        Page=Error_Page.replace("CryskuraHTTP", self.server_name)
-        Page=Page.replace('background: url("Cryskura.png");', f'background: url("{Cryskura_Icon}");')
-        Page=Page.replace("<script>", f"<script>let error='{str(status)+' '+statusStr}';")
-        request.wfile.write(Page.encode())
+        if method=="GET": # GET 请求返回错误页面
+            request.send_header("Content-Type", "text/html")
+            request.end_headers()
+            statusStr=HTTPStatus(status).phrase
+            Page=Error_Page.replace("CryskuraHTTP", self.server_name)
+            Page=Page.replace('background: url("Cryskura.png");', f'background: url("{Cryskura_Icon}");')
+            Page=Page.replace("<script>", f"<script>let error='{str(status)+' '+statusStr}';")
+            request.wfile.write(Page.encode())
+        else: # 其他方法不返回内容
+            request.end_headers()

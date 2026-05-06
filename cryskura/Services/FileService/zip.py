@@ -1,9 +1,5 @@
 """?zip 端点：zip 压缩下载（单文件 + 递归目录）。
 
-优化策略：
-- 小文件（< 100MB）：读入内存，Content-Length 发送，兼容所有 HTTP 版本。
-- HTTP/1.1 + 大文件：流式 chunked 传输编码，零内存拷贝（按文件分段压缩）。
-- HTTP/1.0 + 大文件：回退，返回 507 Insufficient Storage，提示用 HTTP/1.1。
 """
 from __future__ import annotations
 
@@ -20,7 +16,7 @@ if TYPE_CHECKING:
 
 logger = logging.getLogger(__name__)
 
-# 小于此阈值的 zip 读入内存发送（兼容 HTTP/1.0）；超过则回退到流式
+# 小于此阈值的 zip 读入内存发送
 _IN_MEMORY_LIMIT = 10 * 1024 * 1024  # 10 MB
 
 # 每次流式读取的块大小
@@ -29,9 +25,6 @@ _CHUNK_SIZE = 8 * 1024 * 1024  # 8 MB
 
 class _ChunkedWriter:
     """文件对象接口，供 zipfile 写入时使用。
-
-    将底层写入缓冲并按 chunked 编码直接写入 `request.wfile`，同时
-    提供 `tell()` 用于 zipfile 计算偏移。
     """
 
     def __init__(self, request):
@@ -64,8 +57,8 @@ def handle_zip(request: HTTPRequestHandler, real_path: str) -> None:
     """处理 ?zip 查询参数，以 zip 压缩包形式下载文件或目录。
 
     策略：
-    - 单个小文件：在内存中构建 zip 并发送 Content-Length（兼容 HTTP/1.0）。
-    - 其他：HTTP/1.1 下实时压缩并发送（不占用磁盘/大量内存）。
+    - 单个小文件：在内存中构建 zip 并发送。
+    - 其他实时压缩并发送（不占用磁盘/大量内存）。
     """
     basename = os.path.basename(real_path) or "download"
     zip_name = basename + ".zip"
@@ -155,9 +148,9 @@ def _send_streamed_on_the_fly(
                         except (OSError, PermissionError) as e:
                             logger.warning("Skipping file %s in zip: %s", fp, e)
                             continue
-    except Exception:
+    except (BrokenPipeError, ConnectionAbortedError, ConnectionResetError, OSError):
         # 在写入过程中，如果发生任何异常（例如客户端断开），直接终止
         try:
             request.connection.close()
-        except Exception:
+        except OSError:
             pass
