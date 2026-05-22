@@ -170,7 +170,3 @@ class AuthService(BaseService):
             return
 
         send_json(HTTPStatus.METHOD_NOT_ALLOWED, {"message": f"Method {method} not allowed"})
-
-
-# Backward compatibility: older code may still import APIService from this module.
-APIService = AuthService

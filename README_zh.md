@@ -282,6 +282,37 @@ server.start()
 - 登录成功后，登录页会自动返回 `next` 指向的目标路径。
 - 对于非 GET 的未认证请求，服务返回 `401`，并在 JSON 中包含 `auth_url` 字段。
 
+### 简化 JSON API 路由器
+
+如果您需要一个轻量级的 JSON API 层，可以使用 `SimpleAPIRouter`。它会自动处理 JSON 请求体解析、JSON 响应序列化，并支持 `/users/{user_id}/posts/{post_id}` 这样的路径参数。
+
+```python
+from cryskura import Server
+from cryskura.Services import SimpleAPIRouter
+
+router = SimpleAPIRouter()
+
+@router.get("/users/{user_id}/posts/{post_id}")
+def get_post(params, body):
+    return 200, {
+        "user_id": params["user_id"],
+        "post_id": params["post_id"],
+        "body": body,
+    }
+
+@router.post("/users/{user_id}/posts")
+def create_post(params, body):
+    return 201, {"user_id": params["user_id"], "created": body}
+
+server = Server(services=router.build("/api"))
+server.start()
+```
+
+注意：
+
+- 模板必须严格匹配，因此 `/api/users/1/posts/2` 是有效路径，但 `/api/users/1/posts/2/extra` 不是。
+- 对于 `@router.get(...)` 路由，`HEAD` 请求也受支持，并且只返回响应头，不返回响应体。
+
 ### 自定义服务
 
 要创建自定义服务，请扩展 `BaseService` 类并实现所需的方法：

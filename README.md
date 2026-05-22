@@ -283,6 +283,37 @@ Behavior:
 - After successful login, the login page returns to `next` automatically.
 - For non-GET unauthenticated requests, the service returns `401` with a JSON body including `auth_url`.
 
+### Simple JSON API Router
+
+If you want a lightweight JSON API layer, use `SimpleAPIRouter`. It handles JSON request parsing, JSON responses, and path parameters such as `/users/{user_id}/posts/{post_id}`.
+
+```python
+from cryskura import Server
+from cryskura.Services import SimpleAPIRouter
+
+router = SimpleAPIRouter()
+
+@router.get("/users/{user_id}/posts/{post_id}")
+def get_post(params, body):
+    return 200, {
+        "user_id": params["user_id"],
+        "post_id": params["post_id"],
+        "body": body,
+    }
+
+@router.post("/users/{user_id}/posts")
+def create_post(params, body):
+    return 201, {"user_id": params["user_id"], "created": body}
+
+server = Server(services=router.build("/api"))
+server.start()
+```
+
+Notes:
+
+- The template must match exactly, so `/api/users/1/posts/2` is valid, but `/api/users/1/posts/2/extra` is not.
+- `HEAD` requests are supported for `@router.get(...)` routes and return headers without a response body.
+
 ### Custom Services
 
 To create a custom service, extend the `BaseService` class and implement the required methods:
