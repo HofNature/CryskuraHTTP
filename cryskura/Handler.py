@@ -76,7 +76,7 @@ class HTTPRequestHandler(SimpleHTTPRequestHandler):
                 return
             
             path,args = self.split_Path()
-            host = self.headers.get('Host',None)
+            host = self.headers.get('Host', None)
 
             if host is None:
                 port = None
@@ -106,11 +106,14 @@ class HTTPRequestHandler(SimpleHTTPRequestHandler):
                     host = None
                     port = None
 
+            self.host = host
+            self.port = port
+
             path_exists = False
             handled = False
             for service in self.services:
                 for route in service.routes:
-                    can_handle,path_ok = route.match(path,self.command,host,port)
+                    can_handle,path_ok = route.match(self,path,host,port)
                     if path_ok:
                         path_exists = True
                     if can_handle:

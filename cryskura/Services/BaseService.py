@@ -36,7 +36,8 @@ class Route:
             raise ValueError(f"Type {type} is not a valid type.")
         self.type = type
 
-    def match(self, path:list, method:str, host=None, port=None):
+    def match(self, request:Handler, path:list, host=None, port=None):
+        method = request.command
         path_exists = False
         if self.host is None:
             host_match = True
@@ -59,7 +60,7 @@ class Route:
                 path_exists = True
                 if method in self.methods:
                     return True,True
-        return False,path_exists
+        return False, path_exists
         
 
 class BaseService:
