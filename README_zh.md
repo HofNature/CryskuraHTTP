@@ -250,6 +250,38 @@ server.start()
 
 您可以自定义 `AUTHFunc` 函数以实现自己的身份验证逻辑，例如检查 cookies、头信息或其他请求参数。
 
+### 内置登录页认证
+
+CryskuraHTTP 还提供了内置的基于 Cookie 的认证服务，并自带登录页。
+
+```python
+from cryskura import Server
+from cryskura.Services import FileService, AuthService, AuthVerify
+
+# 1) 定义用户名和密码
+verify = AuthVerify({
+    "admin": "admin123",
+    "guest": "guest123",
+}, expire_time=7 * 86400)
+
+# 2) 挂载 AuthService
+#    /login        -> 登录页面 + 认证接口
+#    /private/**   -> 受保护路径
+auth = AuthService("/login", verify, "/private", methods=["GET", "HEAD", "POST"], route_type="prefix", title="我的受保护服务")
+
+# 3) 将受保护内容挂载到 /private
+files = FileService(r"/path/to/private-files", "/private", allowUpload=False)
+
+server = Server(services=[auth, files])
+server.start()
+```
+
+行为说明：
+
+- 未认证访问 `GET /private/...` 时，会重定向到 `/login?next=<原始路径>`。
+- 登录成功后，登录页会自动返回 `next` 指向的目标路径。
+- 对于非 GET 的未认证请求，服务返回 `401`，并在 JSON 中包含 `auth_url` 字段。
+
 ### 自定义服务
 
 要创建自定义服务，请扩展 `BaseService` 类并实现所需的方法：

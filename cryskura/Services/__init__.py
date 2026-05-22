@@ -4,3 +4,4 @@ from .FileService import FileService
 from .RedirectService import RedirectService
 from .PageService import PageService
 from .APIService import APIService
+from .AuthService import AuthService, AuthVerify

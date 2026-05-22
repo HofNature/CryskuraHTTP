@@ -251,6 +251,38 @@ In this example, the `AUTHFunc` function checks the `passwd` parameter in the re
 
 You can customize the `AUTHFunc` function to implement your own authentication logic, such as checking cookies, headers, or other request parameters.
 
+### Built-in Login Page Authentication
+
+CryskuraHTTP also provides a built-in cookie-based authentication service with a login page.
+
+```python
+from cryskura import Server
+from cryskura.Services import FileService, AuthService, AuthVerify
+
+# 1) Define username/password pairs
+verify = AuthVerify({
+    "admin": "admin123",
+    "guest": "guest123",
+}, expire_time=7 * 86400)
+
+# 2) Mount AuthService
+#    /login        -> login page + auth API
+#    /private/**   -> protected routes
+auth = AuthService("/login", verify, "/private", methods=["GET", "HEAD", "POST"], route_type="prefix", title="My Protected Server")
+
+# 3) Protected content under /private
+files = FileService(r"/path/to/private-files", "/private", allowUpload=False)
+
+server = Server(services=[auth, files])
+server.start()
+```
+
+Behavior:
+
+- Unauthenticated `GET /private/...` requests are redirected to `/login?next=<original_path>`.
+- After successful login, the login page returns to `next` automatically.
+- For non-GET unauthenticated requests, the service returns `401` with a JSON body including `auth_url`.
+
 ### Custom Services
 
 To create a custom service, extend the `BaseService` class and implement the required methods:

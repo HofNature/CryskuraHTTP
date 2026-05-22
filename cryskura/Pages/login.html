@@ -1,0 +1,268 @@
+<html lang="zh">
+
+<head>
+	<meta charset="UTF-8">
+	<meta name="viewport" content="width=device-width, initial-scale=1">
+	<title>{{TITLE}} - 身份认证</title>
+	<link type="images/png" rel="shortcut icon" href="/favicon.png">
+	<meta http-equiv="Expires" content="0">
+	<meta http-equiv="Pragma" content="no-cache">
+	<meta http-equiv="Cache-control" content="no-cache">
+	<meta http-equiv="Cache" content="no-cache">
+	<style>
+
+		body { 
+            background: #0001; 
+            margin: 0; 
+            font-family: "Microsoft YaHei", "Segoe UI", sans-serif; 
+            display: flex;
+            align-items: center;
+            justify-content: center;
+        }
+		.container {
+			border: 2px solid #bbb;
+			border-radius: 8px;
+			background: #fff;
+            width: 100%;
+			max-width: 380px;
+			box-shadow: 2px 2px 2px 2px #0002;
+			position: absolute;
+			padding: 15px;
+			display: flex;
+			flex-direction: column;
+		}
+		.title-bar { margin-bottom: 10px; padding: 0 5px; display: flex; align-items: center; }
+		#title-text {
+			overflow: hidden;
+			white-space: nowrap;
+			text-overflow: ellipsis;
+			max-width: calc(100% - 180px);
+			color: #000b;
+		}
+		.flex-span { flex-grow: 1; }
+		#back-link { color: #0009; cursor: pointer; -webkit-user-select: none; user-select: none; }
+		#back-link:hover { color: #000c; }
+		.logo {
+            background: url("Cryskura.png");
+            background-repeat: no-repeat;
+            background-position: center;
+            background-size: contain;
+            width: 100%;
+            height: 128px;
+            position: absolute;
+            top: calc(50% - 320px);
+		}
+		.card {
+            border: 1px solid #0004;
+			border-radius: 4px;
+			padding: 20px;
+		}
+		.card h2 {
+			margin: 0 0 14px;
+			font-size: 22px;
+			font-weight: 600;
+			color: #111;
+			text-align: center;
+		}
+		.input-wrap { margin-bottom: 12px; }
+		.input-wrap label {
+			display: block;
+			margin-bottom: 6px;
+			font-size: 13px;
+			color: #0009;
+		}
+		.input-wrap input {
+			width: 100%;
+			box-sizing: border-box;
+			border: 1px solid #0004;
+			border-radius: 6px;
+			padding: 10px 12px;
+			font-size: 15px;
+			outline: none;
+			transition: 0.25s;
+			background: #fff;
+		}
+		.input-wrap input:focus {
+			border-color: #1118;
+			box-shadow: 0 0 0 2px #0001;
+		}
+		.btn-row { margin-top: 16px; display: flex; gap: 10px; }
+		.btn {
+			border: #0008 2px solid;
+			border-radius: 999px;
+			padding: 8px 18px;
+			font-size: 14px;
+			background: #fff;
+			transition: 0.2s;
+			cursor: pointer;
+			flex: 1;
+		}
+		.btn:hover { background: #0001; }
+		.btn-primary {
+			background: #111;
+			color: #fff;
+			border-color: #111;
+		}
+		.btn-primary:hover { background: #000; }
+		.message {
+			min-height: 22px;
+			margin-top: 10px;
+			text-align: center;
+			font-size: 13px;
+			color: #666;
+            user-select: none;
+		}
+		.message.error { color: #b91c1c; }
+		.message.success { color: #166534; }
+	</style>
+	<script>
+		document.addEventListener("DOMContentLoaded", function () {
+			var lang = navigator.language || "";
+			var isEnglish = lang.indexOf("zh") === -1;
+
+			function t(zh, en) {
+				return isEnglish ? en : zh;
+			}
+
+			var titleText = document.getElementById("title-text");
+			var backLink = document.getElementById("back-link");
+			var loginTitle = document.getElementById("login-title");
+			var usernameLabel = document.getElementById("username-label");
+			var passwordLabel = document.getElementById("password-label");
+			var usernameInput = document.getElementById("username");
+			var passwordInput = document.getElementById("password");
+			var submitBtn = document.getElementById("submit-btn");
+			var resetBtn = document.getElementById("reset-btn");
+			var msg = document.getElementById("message");
+
+			titleText.innerText = "{{TITLE}}";
+			backLink.innerText = t("返回首页", "Home");
+			loginTitle.innerText = t("身份验证", "Authentication");
+			usernameLabel.innerText = t("用户名", "Username");
+			passwordLabel.innerText = t("密码", "Password");
+			submitBtn.innerText = t("登录", "Sign In");
+			resetBtn.innerText = t("清空", "Clear");
+			usernameInput.placeholder = t("请输入用户名", "Enter username");
+			passwordInput.placeholder = t("请输入密码", "Enter password");
+
+			function setMessage(text, type) {
+				msg.innerText = text;
+				msg.className = "message" + (type ? " " + type : "");
+			}
+
+            setMessage(t("请登录以访问受保护的内容", "Login to access protected content"), "");
+			
+            function getReturnUrl() {
+				var p = new URLSearchParams(window.location.search);
+				var next = p.get("next");
+				if (next && next.startsWith("/")) {
+					return next;
+				}
+				if (document.referrer) {
+					try {
+						var ref = new URL(document.referrer);
+						if (ref.origin === window.location.origin) {
+							return ref.pathname + ref.search + ref.hash;
+						}
+					} catch (err) {
+					}
+				}
+				return "/";
+			}
+
+			backLink.addEventListener("click", function () {
+				window.location.href = "/";
+			});
+
+			resetBtn.addEventListener("click", function () {
+				usernameInput.value = "";
+				passwordInput.value = "";
+				setMessage("", "");
+				usernameInput.focus();
+			});
+
+			function submitAuth() {
+				var username = usernameInput.value.trim();
+				var password = passwordInput.value;
+				if (!username || !password) {
+					setMessage(t("请填写用户名和密码", "Please enter username and password"), "error");
+					return;
+				}
+
+				submitBtn.disabled = true;
+				submitBtn.innerText = t("登录中...", "Signing in...");
+				setMessage(t("正在验证...", "Verifying..."), "");
+
+				fetch(window.location.pathname, {
+					method: "POST",
+					headers: { "Content-Type": "application/json" },
+					credentials: "same-origin",
+					body: JSON.stringify({ username: username, password: password })
+				}).then(function (res) {
+					return res.json().catch(function () {
+						return {};
+					}).then(function (data) {
+						return { status: res.status, data: data };
+					});
+				}).then(function (result) {
+					if (result.status >= 200 && result.status < 300) {
+						setMessage(t("登录成功，正在跳转...", "Login successful, redirecting..."), "success");
+						setTimeout(function () {
+							window.location.href = getReturnUrl();
+						}, 350);
+						return;
+					}
+					var m = result.data && result.data.message != "Authentication failed" ? result.data.message : t("认证失败", "Authentication failed");
+					setMessage(m, "error");
+				}).catch(function () {
+					setMessage(t("网络错误，请稍后重试", "Network error, please try again"), "error");
+				}).finally(function () {
+					submitBtn.disabled = false;
+					submitBtn.innerText = t("登录", "Sign In");
+				});
+			}
+
+			submitBtn.addEventListener("click", submitAuth);
+			passwordInput.addEventListener("keydown", function (e) {
+				if (e.key === "Enter") {
+					submitAuth();
+				}
+			});
+			usernameInput.addEventListener("keydown", function (e) {
+				if (e.key === "Enter") {
+					passwordInput.focus();
+				}
+			});
+			usernameInput.focus();
+		});
+	</script>
+</head>
+
+<body>
+	<div class="logo"></div>
+	<div class="container">
+		<div class="title-bar">
+			<span id="title-text">CryskuraHTTP</span>
+			<span class="flex-span"></span>
+			<span id="back-link">返回首页</span>
+		</div>
+		<div class="card">
+            <h2 id="login-title">身份验证</h2>
+            <div class="input-wrap">
+                <label id="username-label" for="username">用户名</label>
+                <input id="username" type="text" autocomplete="username">
+            </div>
+            <div class="input-wrap">
+                <label id="password-label" for="password">密码</label>
+                <input id="password" type="password" autocomplete="current-password">
+            </div>
+            <div class="btn-row">
+                <button id="submit-btn" class="btn btn-primary" type="button">登录</button>
+                <button id="reset-btn" class="btn" type="button">清空</button>
+            </div>
+            <div id="message" class="message"></div>
+		</div>
+	</div>
+</body>
+
+</html>
