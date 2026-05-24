@@ -48,31 +48,33 @@ logger = logging.getLogger(__name__)
 SimpleAPIFunc = Callable[..., tuple[int, Any]] 
 
 class SimpleAPIService(BaseService):
-    """单个 JSON API 端点，自动处理 JSON 序列化。"""
+    """单个 JSON API 端点，自动处理 JSON 序列化。
+
+    支持同一 remote_path 下的多个路由模板，按注册顺序匹配。
+    """
 
     def __init__(
         self,
         remote_path: list[str],
-        func: SimpleAPIFunc,
-        methods: list[str],
+        route_defs: list[dict],
         route_type: str,
-        path_params: list[str],
-        path_template: list[str],  # 完整路径模板段，如 ["users", "{user_id}", "posts", "{post_id}"]
-        template_offset: int,
         host: Optional[str],
         port: Optional[int],
         max_body: int = 1024 * 1024,
     ) -> None:
+        all_methods: list[str] = []
+        for rd in route_defs:
+            for m in rd["methods"]:
+                if m not in all_methods:
+                    all_methods.append(m)
+
         self.routes = [
-            Route(remote_path, methods, route_type, host, port),
+            Route(remote_path, all_methods, route_type, host, port),
         ]
-        self.func: SimpleAPIFunc = func
-        self.path_params: list[str] = path_params
-        self.path_template: list[str] = path_template
-        self.template_offset: int = template_offset
+        self.route_defs: list[dict] = route_defs
         self.route_len: int = len(remote_path)
         self.max_body: int = max_body
-        for method in methods:
+        for method in all_methods:
             setattr(
                 self, f"handle_{method}",
                 lambda request, path, args, m=method: self._handle(request, path, args, m),
@@ -89,16 +91,15 @@ class SimpleAPIService(BaseService):
     def handle_HEAD(self, request: Handler, path: list[str], args: dict[str, str]) -> None:
         self._handle(request, path, args, "HEAD")
 
-    def _extract_params(self, remaining: list[str]) -> dict[str, str] | None:
-        """从 remaining 路径段中按照 path_template 提取参数。
-
-        仅当 remaining 与模板剩余部分完全一致时返回参数；否则返回 None。
-        例如 template=["users", "{uid}", "posts", "{pid}"],
-        remote_path 仅覆盖 ["users"] 时，remaining=["5", "posts", "42"]
-        → {"uid": "5", "pid": "42"}
-        """
+    @staticmethod
+    def _extract_params_template(
+        remaining: list[str],
+        path_template: list[str],
+        template_offset: int,
+    ) -> dict[str, str] | None:
+        """从 remaining 路径段中按照给定模板提取参数。"""
         params: dict[str, str] = {}
-        template = self.path_template[self.template_offset:]
+        template = path_template[template_offset:]
         if len(remaining) != len(template):
             return None
 
@@ -111,6 +112,24 @@ class SimpleAPIService(BaseService):
                     return None
         return params
 
+    def _find_route(
+        self,
+        remaining: list[str],
+        method: str,
+    ) -> tuple[dict | None, dict[str, str] | None]:
+        """查找匹配 method 和剩余路径的路由定义。"""
+        for rd in self.route_defs:
+            if method not in rd["methods"]:
+                continue
+            params = self._extract_params_template(
+                remaining,
+                rd["path_template"],
+                rd["template_offset"],
+            )
+            if params is not None:
+                return rd, params
+        return None, None
+
     def _handle(
         self,
         request: Handler,
@@ -120,9 +139,9 @@ class SimpleAPIService(BaseService):
     ) -> None:
         # 提取路径参数
         remaining = path[self.route_len:]
-        params = self._extract_params(remaining)
+        matched_rd, params = self._find_route(remaining, method)
 
-        if params is None:
+        if matched_rd is None:
             request.send_response(HTTPStatus.NOT_FOUND)
             request.send_header("Content-Type", "application/json")
             err = json.dumps({"error": "Route not found"}).encode()
@@ -131,21 +150,29 @@ class SimpleAPIService(BaseService):
             request.wfile.write(err)
             return
 
-        # 检查必需的路径参数是否齐全
-        missing = [p for p in self.path_params if p not in params]
-        if missing:
-            request.send_response(HTTPStatus.BAD_REQUEST)
-            request.send_header("Content-Type", "application/json")
-            err = json.dumps({"error": f"Missing path parameter(s): {', '.join(missing)}"}).encode()
-            request.send_header("Content-Length", str(len(err)))
-            request.end_headers()
-            request.wfile.write(err)
-            return
-
         # 解析 JSON 请求体（POST / PUT / PATCH / DELETE）
         body: Any = None
         if method in ("POST", "PUT", "PATCH", "DELETE"):
-            content_length = int(request.headers.get("Content-Length", 0))
+            try:
+                content_length = int(request.headers.get("Content-Length", 0))
+            except (ValueError, TypeError):
+                request.send_response(HTTPStatus.BAD_REQUEST)
+                request.send_header("Content-Type", "application/json")
+                err = json.dumps({"error": "Invalid Content-Length"}).encode()
+                request.send_header("Content-Length", str(len(err)))
+                request.end_headers()
+                request.wfile.write(err)
+                return
+
+            if content_length < 0:
+                request.send_response(HTTPStatus.BAD_REQUEST)
+                request.send_header("Content-Type", "application/json")
+                err = json.dumps({"error": "Invalid Content-Length"}).encode()
+                request.send_header("Content-Length", str(len(err)))
+                request.end_headers()
+                request.wfile.write(err)
+                return
+
             if content_length > 0:
                 if self.max_body > 0 and content_length > self.max_body:
                     request.send_response(HTTPStatus.REQUEST_ENTITY_TOO_LARGE)
@@ -154,6 +181,10 @@ class SimpleAPIService(BaseService):
                     request.send_header("Content-Length", str(len(err)))
                     request.end_headers()
                     request.wfile.write(err)
+                    try:
+                        request.rfile.read(content_length)
+                    except Exception:
+                        pass
                     return
                 raw = request.rfile.read(content_length)
                 try:
@@ -167,18 +198,21 @@ class SimpleAPIService(BaseService):
                     request.wfile.write(err)
                     return
         # 调用用户函数
+        func = matched_rd["func"]
         try:
-            if self.func.__code__.co_argcount == 1:
-                # 用户函数只接受一个参数（params）
-                status_code, result = self.func(params)
+            try:
+                argcount = func.__code__.co_argcount
+            except AttributeError:
+                argcount = 2
+            if argcount == 1:
+                status_code, result = func(params)
             else:
-                # 用户函数接受两个参数（params 和 body）
-                status_code, result = self.func(params, body)
+                status_code, result = func(params, body)
         except Exception as e:
             logger.error("SimpleAPI error: %s", e)
             request.send_response(HTTPStatus.INTERNAL_SERVER_ERROR)
             request.send_header("Content-Type", "application/json")
-            err = json.dumps({"error": str(e)}).encode()
+            err = json.dumps({"error": "Internal server error"}).encode()
             request.send_header("Content-Length", str(len(err)))
             request.end_headers()
             request.wfile.write(err)
@@ -267,12 +301,8 @@ class SimpleAPIRouter:
         func: SimpleAPIFunc,
     ) -> None:
         path_params = re.findall(r'\{(\w+)\}', path)
-        # 将 {param} 替换为通配路径匹配用的占位符
-        clean_path = re.sub(r'\{[^}]+\}', '', path)
-        # 保留分隔符位置用于前缀匹配
         self._routes.append({
             "path": path,
-            "clean_path": clean_path,
             "func": func,
             "methods": methods,
             "path_params": path_params,
@@ -286,23 +316,25 @@ class SimpleAPIRouter:
     ) -> list[SimpleAPIService]:
         """构建 SimpleAPIService 列表。
 
-        路径参数段（如 {user_id}）不参与 Route 匹配，
-        而是作为前缀匹配后剩余段的提取依据。
+        相同 fixed_prefix 的多个路由会合并到同一个 SimpleAPIService 中，
+        避免前缀匹配时的路由遮蔽问题。路径参数段（如 {user_id}）不参与
+        Route 匹配，而是作为前缀匹配后剩余段的提取依据。
         """
         if base_path:
             base_parts = [p for p in base_path.strip("/").split("/") if p]
         else:
             base_parts = []
 
-        services: list[SimpleAPIService] = []
+        # 按 remote_path 分组，保留注册顺序
+        groups: dict[tuple[str, ...], list[dict]] = {}
+        group_order: list[tuple[str, ...]] = []
+
         for route in self._routes:
             full_path_str = route["path"]
             if full_path_str.startswith("/"):
                 full_path_str = full_path_str[1:]
             path_segments = [p for p in full_path_str.split("/") if p]
 
-            # 分离固定段和参数段：遇到第一个 {param} 就停止
-            # 匹配路径 = base + 固定段，用 prefix 匹配
             fixed_segments: list[str] = []
             for seg in path_segments:
                 if seg.startswith("{") and seg.endswith("}"):
@@ -310,15 +342,28 @@ class SimpleAPIRouter:
                 fixed_segments.append(seg)
 
             remote_path = base_parts + fixed_segments
+            key = tuple(remote_path)
 
+            route_def = {
+                "func": route["func"],
+                "methods": route["methods"],
+                "path_params": route["path_params"],
+                "path_template": path_segments,
+                "template_offset": len(fixed_segments),
+            }
+
+            if key not in groups:
+                groups[key] = []
+                group_order.append(key)
+            groups[key].append(route_def)
+
+        services: list[SimpleAPIService] = []
+        for key in group_order:
+            route_defs = groups[key]
             services.append(SimpleAPIService(
-                remote_path=remote_path,
-                func=route["func"],
-                methods=route["methods"],
+                remote_path=list(key),
+                route_defs=route_defs,
                 route_type="prefix",
-                path_params=route["path_params"],
-                path_template=path_segments,  # 完整路径模板，含参数占位符
-                template_offset=len(fixed_segments),
                 host=host,
                 port=port,
                 max_body=self._max_body,

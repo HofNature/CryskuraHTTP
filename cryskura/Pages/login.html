@@ -155,7 +155,7 @@
             function getReturnUrl() {
 				var p = new URLSearchParams(window.location.search);
 				var next = p.get("next");
-				if (next && next.startsWith("/")) {
+				if (next && next.startsWith("/") && !next.startsWith("//")) {
 					return next;
 				}
 				if (document.referrer) {

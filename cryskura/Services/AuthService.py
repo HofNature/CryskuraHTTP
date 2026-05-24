@@ -1,11 +1,16 @@
-from uuid import uuid4
+from __future__ import annotations
+
+import html
+import json
+import threading
 from datetime import datetime
+from http import HTTPStatus
+from urllib.parse import quote
+from uuid import uuid4
+
 from . import BaseService, Route
 from .. import Handler
 from ..Pages import Login_Page, Cryskura_Icon
-from http import HTTPStatus
-from urllib.parse import quote
-import json
 
 ac_headers = {
     "Access-Control-Allow-Origin": "*",
@@ -24,9 +29,10 @@ class AuthVerify:
         return False
 
 class AuthRoute(Route):
-    def __init__(self, path, token, key, methods: list, route_type: str, host = None, port = None):
+    def __init__(self, path, token, key, methods: list, route_type: str, host = None, port = None, token_lock: threading.Lock | None = None):
         self.token = token
         self.key = key
+        self.token_lock = token_lock
         super().__init__(path, methods, route_type, host, port)
 
     def match(self, request:Handler, path:list, host=None, port=None):
@@ -48,13 +54,20 @@ class AuthRoute(Route):
                 break
         if user_token is None:
             return True, True
-        if user_token in self.token:
-            username, expire_time = self.token[user_token]
-            if expire_time<datetime.now().timestamp():
-                self.token.pop(user_token)
-                return True, True
-            print(f"User {username} passed auth for {request.command} /{'/'.join(path)}")
-            return False, False
+        lock = self.token_lock
+        if lock is not None:
+            lock.acquire()
+        try:
+            if user_token in self.token:
+                username, expire_time = self.token[user_token]
+                if expire_time<datetime.now().timestamp():
+                    self.token.pop(user_token)
+                    return True, True
+                print(f"User {username} passed auth for {request.command} /{'/'.join(path)}")
+                return False, False
+        finally:
+            if lock is not None:
+                lock.release()
         return True, True
 
 class AuthService(BaseService):
@@ -62,18 +75,20 @@ class AuthService(BaseService):
         if methods is None:
             methods = ["GET", "HEAD", "POST", "OPTIONS"]
         self.token = {}
+        self.token_lock = threading.Lock()
         self.key = 'Cryskura_AUTH_' + str(uuid4()).replace("-","").upper()
+        login_methods = list(dict.fromkeys(methods + ["OPTIONS"]))
         self.routes = [
-            Route(remote_path, ["HEAD","POST","GET","OPTIONS"], "exact", host, port),
-            AuthRoute(protected_path, self.token, self.key, methods, route_type, host, port),
+            Route(remote_path, login_methods, "exact", host, port),
+            AuthRoute(protected_path, self.token, self.key, methods, route_type, host, port, token_lock=self.token_lock),
         ]
-        self.login_page = Login_Page.replace("{{TITLE}}", title).replace(
+        self.login_page = Login_Page.replace("{{TITLE}}", html.escape(title, quote=True)).replace(
             'background: url("Cryskura.png");',
             f'background: url("{Cryskura_Icon}");',
         )
         self.auth_path = '/' + '/'.join(self.routes[0].path)
         self.verify = verify
-        for method in methods:
+        for method in login_methods:
             setattr(self, f"handle_{method}", lambda request, path, args, method=method: self.handle_AUTHV(request, path, args, method))
         super().__init__(self.routes, None)
         self.remote_path = self.routes[0].path
@@ -89,23 +104,29 @@ class AuthService(BaseService):
     
     def handle_AUTHV(self, request:Handler, path:list, _args:dict, method:str):
         def send_json(status: HTTPStatus, payload: dict, extra_headers: dict | None = None):
+            body = json.dumps(payload).encode("utf-8")
             request.send_response(status)
             for key, value in ac_headers.items():
                 request.send_header(key, value)
             request.send_header("Content-Type", "application/json; charset=utf-8")
+            request.send_header("Content-Length", str(len(body)))
             if extra_headers is not None:
                 for key, value in extra_headers.items():
                     request.send_header(key, value)
             request.end_headers()
-            request.wfile.write(json.dumps(payload).encode("utf-8"))
+            if method != "HEAD":
+                request.wfile.write(body)
 
         def send_login_page():
+            body = self.login_page.encode("utf-8")
             request.send_response(HTTPStatus.OK)
             for key, value in ac_headers.items():
                 request.send_header(key, value)
             request.send_header("Content-Type", "text/html; charset=utf-8")
+            request.send_header("Content-Length", str(len(body)))
             request.end_headers()
-            request.wfile.write(self.login_page.encode("utf-8"))
+            if method != "HEAD":
+                request.wfile.write(body)
 
         is_auth_page = self.routes[0].match(request, path, request.host, request.port)[0]
         if not is_auth_page:  # 命中受保护路由但未通过认证
@@ -124,15 +145,12 @@ class AuthService(BaseService):
             request.send_response(HTTPStatus.NO_CONTENT)
             for key, value in ac_headers.items():
                 request.send_header(key, value)
+            request.send_header("Content-Length", "0")
             request.end_headers()
             return
 
         if method == "HEAD":
-            request.send_response(HTTPStatus.OK)
-            for key, value in ac_headers.items():
-                request.send_header(key, value)
-            request.send_header("Content-Type", "text/html; charset=utf-8")
-            request.end_headers()
+            send_login_page()
             return
 
         if method == "GET":
@@ -140,7 +158,16 @@ class AuthService(BaseService):
             return
 
         if method == "POST":
-            content_length = int(request.headers.get("Content-Length", 0))
+            try:
+                content_length = int(request.headers.get("Content-Length", 0))
+            except (ValueError, TypeError):
+                send_json(HTTPStatus.BAD_REQUEST, {"message": "Invalid Content-Length"})
+                return
+
+            if content_length < 0:
+                send_json(HTTPStatus.BAD_REQUEST, {"message": "Invalid Content-Length"})
+                return
+
             try:
                 content = request.rfile.read(content_length).decode("utf-8")
                 data = json.loads(content)
@@ -153,8 +180,13 @@ class AuthService(BaseService):
 
             if self.verify(username, password):
                 token = str(uuid4()).replace("-", "").upper()
-                expire_time = datetime.now().timestamp() + self.verify.expire_time
-                self.token[token] = (username, expire_time)
+                now = datetime.now().timestamp()
+                expire_time = now + self.verify.expire_time
+                with self.token_lock:
+                    expired = [t for t, (u, exp) in self.token.items() if exp < now]
+                    for t in expired:
+                        self.token.pop(t)
+                    self.token[token] = (username, expire_time)
                 send_json(
                     HTTPStatus.OK,
                     {"message": "Authentication successful"},
