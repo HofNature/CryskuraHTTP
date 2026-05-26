@@ -9,3 +9,5 @@ Test.ipynb
 .vscode
 Demo.py
 .claude
+dev/
+.github/

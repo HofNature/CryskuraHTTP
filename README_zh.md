@@ -11,7 +11,7 @@ CryskuraHTTP 是一个用 Python 实现的轻量级、可定制的 HTTP(s) 服�
 
 ## 特性
 
-CryskuraHTTP 是 Python 内置 `http.server` 的扩展，具有很少的依赖。您可以利用它实现 Python HTTP 服务，而无需安装大型软件或库。它还可以用作文件共享工具，支持通过浏览器进行文件下载和上传，并可通过 Windows 右键菜单启动。
+CryskuraHTTP 是 Python 内置 `http.server` 的扩展，**无需任何外部依赖**。您可以利用它实现 Python HTTP 服务，而无需安装大型软件或库。它还可以用作文件共享工具，支持通过浏览器进行文件下载和上传，并可通过 Windows 右键菜单启动。
 
 - **可定制服务**：通过扩展 `BaseService` 类轻松添加自定义服务。
 - **可定制 API 调用**：使用 `APIService` 类定义自定义 API 调用。
@@ -26,6 +26,8 @@ CryskuraHTTP 是 Python 内置 `http.server` 的扩展，具有很少的依赖�
 - **可续传下载**：在提供文件服务时支持大文件的可续传下载。
 - **重定向**：支持 301 和 308 重定向。
 - **SSL 支持**：通过提供证书文件可选启用 SSL。
+- **IPv6 与双栈**：完整 IPv6 支持，可选双栈模式（单套接字同时接受 IPv4 和 IPv6 连接）。
+- **多 IP/端口监听**：可同时绑定多个网络接口和端口。
 - **多线程服务器**：支持多线程请求处理以提高性能。
 - **命令行界面**：通过命令行运行服务器并进行自定义设置。
 - **右键支持**：支持在 Windows 上通过右键菜单启动服务器。
@@ -34,8 +36,7 @@ CryskuraHTTP 是 Python 内置 `http.server` 的扩展，具有很少的依赖�
 
 ## 要求
 
-- Python 3.x
-- `psutil` 库
+- Python 3.7+（无外部依赖）
 
 ## 安装
 
@@ -67,7 +68,7 @@ CryskuraHTTP 是 Python 内置 `http.server` 的扩展，具有很少的依赖�
 
 ```python
 from cryskura import Server
-server = HTTPServer(interface="127.0.0.1", port=8080)
+server = Server(interface="127.0.0.1", port=8080)
 server.start()
 ```
 
@@ -134,10 +135,68 @@ cryskura --help
 - `-rr, --removeRightClick`：从右键菜单中移除。
 - `-d PATH, --path PATH`：要提供服务的目录路径。
 - `-n NAME, --name NAME`：服务器的名称。
-- `-p PORT, --port PORT`：监听的端口。
+- `-p PORT, --port PORT`：监听的端口。可多次指定以实现多端口监听。
 - `-c CERTFILE, --certfile CERTFILE`：证书文件的路径。
-- `-i INTERFACE, --interface INTERFACE`：监听的接口。
+- `-i INTERFACE, --interface INTERFACE`：监听的接口。可多次指定以实现多 IP 监听。支持 IPv4、IPv6 地址或主机名。
 - `-j HTTP_TO_HTTPS, --http_to_https HTTP_TO_HTTPS`：将 HTTP 请求重定向到 HTTPS 的端口。
+- `--dual-stack`：在 IPv6 套接字上启用 IPv4/IPv6 双栈模式（设置 IPV6_V6ONLY=0）。启用后，单个 IPv6 套接字可同时接受 IPv4 和 IPv6 连接。
+
+## 多 IP/端口监听与双栈
+
+服务器支持同时监听多个网络接口和端口，所有指定的接口和端口组合均会被使用。
+
+### 监听多个端口
+
+```python
+server = Server(interface="0.0.0.0", port=[8080, 8443])
+server.start()
+```
+
+或通过命令行：
+
+```sh
+cryskura -i 0.0.0.0 -p 8080 -p 8443
+```
+
+### 监听多个接口
+
+```python
+server = Server(interface=["192.168.1.5", "10.0.0.1"], port=8080)
+server.start()
+```
+
+### IPv6 与双栈
+
+完整支持 IPv6。使用 `::` 表示所有 IPv6 接口，`::1` 表示 IPv6 本地回环：
+
+```python
+# 仅 IPv6
+server = Server(interface="::1", port=8080)
+
+# 双栈模式：单套接字同时接受 IPv4 和 IPv6
+server = Server(interface="::", port=8080, dual_stack=True)
+```
+
+通过命令行：
+
+```sh
+# IPv6 本地回环
+cryskura -i ::1 -p 8080
+
+# 在所有接口上启用双栈
+cryskura -i :: -p 8080 --dual-stack
+```
+
+> **注意**：在 Linux 上，绑定到 `::` 且 `dual_stack` 为默认值（关闭）时，大多数发行版仍然通过 IPv4 映射的 IPv6 地址接受 IPv4 连接。`--dual-stack` 标志主要用于 Windows 和 macOS，这些平台上 `IPV6_V6ONLY` 默认为 1。启用它可以确保跨平台行为一致。
+
+### 混合 IPv4/IPv6 多地址绑定
+
+```python
+server = Server(interface=["127.0.0.1", "::1"], port=[8080])
+server.start()
+```
+
+这将创建两个独立的套接字——一个用于 IPv4（`127.0.0.1:8080`），另一个用于 IPv6（`[::1]:8080`）。
 
 ## 作为 Python 模块使用
 

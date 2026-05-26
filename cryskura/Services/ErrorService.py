@@ -3,6 +3,7 @@ from ..Pages import Error_Page,Cryskura_Icon
 from . import BaseService
 from .. import Handler
 
+import html
 from http import HTTPStatus
 
 class ErrorService(BaseService):
@@ -19,7 +20,7 @@ class ErrorService(BaseService):
             request.send_header("Content-Type", "text/html")
             request.end_headers()
             statusStr=HTTPStatus(status).phrase
-            Page=Error_Page.replace("CryskuraHTTP", self.server_name)
+            Page=Error_Page.replace("CryskuraHTTP", html.escape(self.server_name, quote=True))
             Page=Page.replace('background: url("Cryskura.png");', f'background: url("{Cryskura_Icon}");')
             Page=Page.replace("<script>", f"<script>let error='{str(status)+' '+statusStr}';")
             request.wfile.write(Page.encode())

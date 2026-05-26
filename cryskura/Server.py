@@ -5,64 +5,118 @@ except ImportError:
     print("Warning: SSL module not found. HTTPS is not supported.")
     ssl = None
 import socket
-import psutil
 import threading
 from http.server import ThreadingHTTPServer
-from .uPnP import uPnPClient
+from .uPnP import uPnPClient, _get_local_addresses
 from .Handler import HTTPRequestHandler as Handler
 from .Services import BaseService, FileService, ErrorService
 
 
+class _BoundHTTPServer(ThreadingHTTPServer):
+    """A ThreadingHTTPServer subclass that uses per-instance address_family
+    to avoid class-variable races."""
+
+    allow_reuse_address = True
+
+    def __init__(self, server_address, RequestHandlerClass,
+                 family=None, bind_and_activate=True):
+        if family is not None:
+            self.address_family = family
+        super().__init__(server_address, RequestHandlerClass, bind_and_activate)
+
+
 class HTTPServer:
-    def __init__(self, interface: str = "127.0.0.1", port: int = 8080, services=None, error_service=None, server_name: str = "CryskuraHTTP/1.0", forcePort: bool = False, certfile=None, uPnP=False):
-        # 获取系统所有网卡的IP地址
-        addrs = psutil.net_if_addrs()
-        available_devices = ["Any Available Interface"]
-        available_interfaces = ["0.0.0.0"]
-        for device, addrs in addrs.items():
-            for addr in addrs:
-                if addr.family in [socket.AF_INET, socket.AF_INET6]:
-                    available_interfaces.append(addr.address)
-                    available_devices.append(device)
-        if interface not in available_interfaces:
-            raise ValueError(f"Interface {interface} not found. \nAvailable interfaces: \n" + "\n".join(
-                [f"{device}: {addr}" for device, addr in zip(available_devices, available_interfaces)]))
-        self.interface = interface
+    def __init__(self, interface=None, port=8080, services=None,
+                 error_service=None, server_name: str = "CryskuraHTTP/1.0",
+                 forcePort: bool = False, certfile=None, uPnP=False,
+                 dual_stack: bool = False):
 
-        # 检查端口是否被占用
-        try:
-            used_ports = []
-            for conn in psutil.net_connections():
-                if conn.laddr.port not in used_ports and conn.laddr.ip == self.interface:
-                    used_ports.append(conn.laddr.port)
-        except Exception as e:
-            print(f"Error checking port availability: {e} , skipping check")
-            used_ports = []
+        # --- Normalize bind addresses ---
+        if interface is None:
+            interface = "127.0.0.1"
+        if isinstance(interface, str):
+            interfaces = [interface]
+        else:
+            interfaces = list(interface)
+        if isinstance(port, int):
+            ports = [port]
+        else:
+            ports = list(port)
 
-        if port in used_ports:
-            if forcePort:
-                print(
-                    f"Port {port} is already in use. Forcing to use port {port}.")
-            else:
-                raise ValueError(f"Port {port} is already in use.")
+        self.bind_addresses = []
+        for iface in interfaces:
+            for p in ports:
+                self.bind_addresses.append((iface, p))
 
-        # 检查uPnP是否可用
+        self.dual_stack = dual_stack
+
+        # --- Dual-stack: on platforms where IPV6_V6ONLY defaults to 1 ---
+        # (Windows), add explicit IPv4 sockets. On Linux/macOS, the IPv6
+        # socket already accepts IPv4 connections (IPV6_V6ONLY defaults to 0).
+        if dual_stack:
+            try:
+                with socket.socket(socket.AF_INET6, socket.SOCK_STREAM) as s:
+                    ipv6only_default = s.getsockopt(socket.IPPROTO_IPV6, socket.IPV6_V6ONLY)
+            except OSError:
+                ipv6only_default = 1
+            if ipv6only_default == 1:
+                extra = []
+                for iface, p in self.bind_addresses:
+                    try:
+                        info = socket.getaddrinfo(iface, None, type=socket.SOCK_STREAM,
+                                                   flags=socket.AI_PASSIVE)
+                        family = info[0][0]
+                    except socket.gaierror:
+                        continue
+                    if family == socket.AF_INET6:
+                        if iface in ('::', '0:0:0:0:0:0:0:0'):
+                            extra.append(('0.0.0.0', p))
+                        elif iface == '::1':
+                            extra.append(('127.0.0.1', p))
+                for addr in extra:
+                    if addr not in self.bind_addresses:
+                        self.bind_addresses.append(addr)
+
+        # --- Validate interfaces (lightweight, stdlib only) ---
+        local_addrs = _get_local_addresses()
+        local_addrs.update(['0.0.0.0', '::', '127.0.0.1', '::1'])
+        for iface, _ in self.bind_addresses:
+            if iface in ('0.0.0.0', '::', '127.0.0.1', '::1', 'localhost'):
+                continue
+            if iface not in local_addrs:
+                try:
+                    socket.getaddrinfo(iface, None, type=socket.SOCK_STREAM)
+                except socket.gaierror:
+                    available = sorted(
+                        a for a in local_addrs
+                        if not a.startswith('127.') and a != '::1'
+                    )
+                    raise ValueError(
+                        f"Interface {iface} not found.\n"
+                        f"Available addresses: {', '.join(available) if available else 'none detected'}"
+                    )
+
+        # --- Validate port ranges and permissions ---
+        for _, p in self.bind_addresses:
+            if p < 0 or p > 65535:
+                raise ValueError(f"Port {p} is out of range.")
+            if os.name == "posix" and p < 1024 and os.geteuid() != 0:
+                raise PermissionError(f"Port {p} requires root permission.")
+
+        # Primary interface/port for backward compatibility
+        self.interface = self.bind_addresses[0][0]
+        self.port = self.bind_addresses[0][1]
+
+        # --- uPnP ---
         if uPnP:
-            self.uPnP = uPnPClient(interface)
+            self.uPnP = uPnPClient(self.interface)
             if not self.uPnP.available:
                 print("Disabling uPnP port forwarding.")
                 self.uPnP = None
         else:
             self.uPnP = None
 
-        # Linux下端口小于1024需要root权限
-        if os.name == "posix" and port < 1024 and os.geteuid() != 0:
-            raise PermissionError(f"Port {port} requires root permission.")
-        if port < 0 or port > 65535:
-            raise ValueError(f"Port {port} is out of range.")
-        self.port = port
-
-        # 检查服务是否合法
+        # --- Validate services ---
         if services is None:
             self.services = [FileService(
                 os.fspath(os.getcwd()), "/", server_name=server_name)]
@@ -75,7 +129,7 @@ class HTTPServer:
                     raise ValueError(
                         f"Service {service} is not a valid service.")
 
-        # 检查错误服务是否合法
+        # --- Validate error service ---
         if error_service is None:
             self.error_service = ErrorService(server_name)
         else:
@@ -85,7 +139,7 @@ class HTTPServer:
                 raise ValueError(
                     f"Service {error_service} is not a valid service.")
 
-        # 检查证书是否合法
+        # --- Validate certificate ---
         if certfile is not None:
             if not os.path.exists(certfile):
                 raise ValueError(f"Certfile {certfile} does not exist.")
@@ -94,68 +148,93 @@ class HTTPServer:
             self.certfile = None
 
         self.server_name = server_name
-        self.server = None
-        self.thread = None
+        self.servers = []       # list of (server, thread)
+        self._force_port = forcePort
+
+    @staticmethod
+    def _resolve_family(interface):
+        try:
+            info = socket.getaddrinfo(interface, None, type=socket.SOCK_STREAM,
+                                       flags=socket.AI_PASSIVE)
+            return info[0][0]
+        except socket.gaierror:
+            raise ValueError(f"Cannot resolve interface: {interface}")
 
     def start(self, threaded: bool = True):
-        # 启动HTTP服务器
         handler = lambda *args, **kwargs: Handler(
             *args, services=self.services, errsvc=self.error_service, **kwargs)
-        if ":" in self.interface:  # Check if the interface is an IPv6 address
-            ThreadingHTTPServer.address_family = socket.AF_INET6
-        self.server = ThreadingHTTPServer((self.interface, self.port), handler)
-        if self.certfile is not None and ssl is not None:
-            ssl_ctx = ssl.create_default_context(ssl.Purpose.CLIENT_AUTH)
-            try:
-                ssl_ctx.load_cert_chain(certfile=self.certfile)
-            except Exception as e:
-                raise ValueError(
-                    f"Error loading certificate: {e}\nPlease provide a valid certificate file.\nOnly PEM file with both certificate and private key is supported.")
-            self.server.socket = ssl_ctx.wrap_socket(
-                self.server.socket, server_side=True)
-        if ":" in self.interface:
-            print(f"Server started at [{self.interface}]:{self.port}")
-        else:
-            print(f"Server started at {self.interface}:{self.port}")
-        if self.uPnP is not None:
-            res, map = self.uPnP.add_port_mapping(
-                self.port, self.port, "TCP", self.server_name)
-            if res:
-                for mapping in map:
-                    print(f"Service is available at {mapping[0]}:{mapping[1]}")
-        if threaded:
-            self.thread = threading.Thread(target=self.serve_forever)
-            self.thread.setDaemon(True)
-            self.thread.start()
-        else:
-            self.serve_forever()
 
-    def serve_forever(self):
-        try:
-            self.server.serve_forever()
-        except KeyboardInterrupt as e:
-            if self.uPnP is not None:
-                self.uPnP.remove_port_mapping()
-            print(f"Server on port {self.port} stopped.")
-            self.stop()
-            # os.kill(os.getpid(), 9)
-        except Exception as e:
-            if self.uPnP is not None:
-                self.uPnP.remove_port_mapping()
-            raise e
+        for iface, port in self.bind_addresses:
+            family = self._resolve_family(iface)
+
+            try:
+                server = _BoundHTTPServer(
+                    (iface, port), handler,
+                    family=family)
+            except OSError as e:
+                if e.errno == 98 or getattr(e, 'winerror', 0) == 10048:
+                    msg = f"Port {port} on {iface} is already in use."
+                    if self._force_port:
+                        print(f"{msg} Forcing anyway (may fail).")
+                        continue
+                    raise ValueError(msg)
+                raise ValueError(f"Failed to bind {iface}:{port}: {e}")
+
+            if self.certfile is not None and ssl is not None:
+                ssl_ctx = ssl.create_default_context(ssl.Purpose.CLIENT_AUTH)
+                try:
+                    ssl_ctx.load_cert_chain(certfile=self.certfile)
+                except Exception as e:
+                    raise ValueError(
+                        f"Error loading certificate: {e}\n"
+                        "Please provide a valid certificate file.\n"
+                        "Only PEM file with both certificate and private key is supported.")
+                server.socket = ssl_ctx.wrap_socket(
+                    server.socket, server_side=True)
+
+            if family == socket.AF_INET6:
+                print(f"Server started at [{iface}]:{port}")
+            else:
+                print(f"Server started at {iface}:{port}")
+
+            thread = threading.Thread(target=server.serve_forever)
+            thread.daemon = threaded
+            thread.start()
+            self.servers.append((server, thread))
+
+        if not self.servers:
+            raise RuntimeError("No servers could be started.")
+
+        # --- uPnP port mappings (deduplicated by port) ---
+        if self.uPnP is not None:
+            seen_ports = set()
+            for _, port in self.bind_addresses:
+                if port not in seen_ports:
+                    seen_ports.add(port)
+                    res, mappings = self.uPnP.add_port_mapping(
+                        port, port, "TCP", self.server_name)
+                    if res:
+                        for mapping in mappings:
+                            print(f"Service is available at {mapping[0]}:{mapping[1]}")
+
+        if not threaded:
+            try:
+                for _, thread in self.servers:
+                    thread.join()
+            except KeyboardInterrupt:
+                print(f"\nServer on port {self.port} stopped.")
+                self.stop()
 
     def stop(self):
-        # 停止HTTP服务器
-        if self.server is not None:
-            if self.thread is not None:
-                self.server.shutdown()
-                self.thread.join()
-                self.server.server_close()
-                self.server = None
-                self.thread = None
-            else:
-                self.server.shutdown()
-                self.server.server_close()
-                self.server = None
-        else:
+        if not self.servers:
             raise ValueError("Server is not running.")
+
+        if self.uPnP is not None:
+            self.uPnP.remove_port_mapping()
+
+        for server, thread in self.servers:
+            server.shutdown()
+            thread.join()
+            server.server_close()
+
+        self.servers.clear()

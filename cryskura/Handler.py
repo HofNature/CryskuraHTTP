@@ -125,7 +125,7 @@ class HTTPRequestHandler(SimpleHTTPRequestHandler):
                             handled = True
                             break
                         except Exception as e:
-                            if isinstance(e,ConnectionAbortedError) or isinstance(e,ConnectionResetError) or isinstance(e,ssl.SSLEOFError):
+                            if isinstance(e, (ConnectionAbortedError, ConnectionResetError, BrokenPipeError)) or (ssl and isinstance(e, ssl.SSLEOFError)):
                                 print(f"Client disconnected while handling {self.command} request for /{'/'.join(path)}: {e}")
                                 return
                             print(f"Error while handling {self.command} request for /{'/'.join(path)}: {e}")

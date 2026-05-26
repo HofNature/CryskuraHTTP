@@ -44,13 +44,23 @@ def right_click_menu_check():
         pass
     return winreg,False
 
-def add_to_right_click_menu(interface:str="0.0.0.0", port:int=8080, certfile=None, forcePort:bool=False, name=None, http_to_https=None, allowResume=False, browser=False, uPnP=False,custome_name=False,browserAddress=None):
+def add_to_right_click_menu(interface="0.0.0.0", port=8080, certfile=None, forcePort:bool=False, name=None, http_to_https=None, allowResume=False, browser=False, uPnP=False, custome_name=False, browserAddress=None):
     winreg,exist = right_click_menu_check()
     if exist:
         print("CryskuraHTTP is already in the right-click menu.")
         remove_from_right_click_menu()
     print("Adding to right-click menu...")
-    args = f'-i {interface} -p {port} -n "{name}"'
+    if isinstance(interface, str):
+        interfaces = [interface]
+    else:
+        interfaces = list(interface)
+    if isinstance(port, int):
+        ports = [port]
+    else:
+        ports = list(port)
+    iface_args = ' '.join(f'-i {i}' for i in interfaces)
+    port_args = ' '.join(f'-p {p}' for p in ports)
+    args = f'{iface_args} {port_args} -n "{name}"'
     if certfile is not None:
         args += f' -c "{certfile}"'
     if forcePort:
@@ -147,8 +157,12 @@ def remove_from_right_click_menu():
 def main():
     import argparse
     parser = argparse.ArgumentParser(description="CryskuraHTTP Server")
-    parser.add_argument("-i", "--interface", type=str, default="0.0.0.0", help="The interface to listen on.")
-    parser.add_argument("-p", "--port", type=int, default=8080, help="The port to listen on.")
+    parser.add_argument("-i", "--interface", action="append", default=None,
+                        help="Interface to listen on (can be specified multiple times). Default: 0.0.0.0")
+    parser.add_argument("-p", "--port", action="append", type=int, default=None,
+                        help="Port to listen on (can be specified multiple times). Default: 8080")
+    parser.add_argument("--dual-stack", action="store_true", default=False,
+                        help="Enable IPv4/IPv6 dual-stack on IPv6 sockets (sets IPV6_V6ONLY=0).")
     parser.add_argument("-c", "--certfile", type=str, default=None, help="The path to the certificate file.")
     parser.add_argument("-f", "--forcePort", action="store_true", help="Force to use the specified port even if it is already in use.")
     parser.add_argument("-d", "--path", type=str, default=None, help="The path to the directory to serve.")
@@ -170,6 +184,16 @@ def main():
         custome_name=False
     else:
         custome_name=True
+
+    # Normalize interfaces and ports
+    if args.interface is None:
+        interfaces = ["0.0.0.0"]
+    else:
+        interfaces = args.interface
+    if args.port is None:
+        ports = [8080]
+    else:
+        ports = args.port
 
     lanuch = not args.addRightClick and not args.removeRightClick
 
@@ -200,35 +224,36 @@ def main():
             raise ValueError(f"Certfile {args.certfile} does not exist.")
         if args.http_to_https is not None and lanuch:
             rs=RedirectService("/","/",default_protocol="https")#f"https://{args.interface}:{args.port}")
-            redirect_server = HTTPServer(interface=args.interface, port=args.http_to_https, services=[rs], server_name=args.name, forcePort=args.forcePort, uPnP=args.uPnP)
+            redirect_server = HTTPServer(interface=interfaces, port=args.http_to_https, services=[rs], server_name=args.name, forcePort=args.forcePort, uPnP=args.uPnP)
             redirect_server.start()
     elif args.http_to_https is not None:
         raise ValueError("HTTP to HTTPS redirection requires a certificate file.")
     
     if lanuch:
-        server = HTTPServer(interface=args.interface, port=args.port, services=services, server_name=args.name, forcePort=args.forcePort, certfile=args.certfile, uPnP=args.uPnP)
+        server = HTTPServer(interface=interfaces, port=ports, services=services, server_name=args.name, forcePort=args.forcePort, certfile=args.certfile, uPnP=args.uPnP, dual_stack=args.dual_stack)
         if args.browser:
+            primary_iface = interfaces[0]
+            primary_port = ports[0]
             if webbrowser is None:
                 raise ImportError("The webbrowser module is not available.")
             elif args.browserAddress is not None:
-                # 判断只是域名还是完整的URL
                 if args.browserAddress.startswith("http://") or args.browserAddress.startswith("https://"):
                     webbrowser.open(args.browserAddress)
                 else:
-                    webbrowser.open("http://" if args.certfile is None else "https://"+args.browserAddress)
+                    webbrowser.open(("http://" if args.certfile is None else "https://") + args.browserAddress)
             elif args.certfile is not None:
-                if args.interface == "0.0.0.0" or args.interface == "::1":
-                    webbrowser.open(f"https://localhost:{args.port}")
+                if primary_iface in ("0.0.0.0", "::", "::1"):
+                    webbrowser.open(f"https://localhost:{primary_port}")
                 else:
-                    webbrowser.open(f"https://{args.interface}:{args.port}")
+                    webbrowser.open(f"https://{primary_iface}:{primary_port}")
             else:
-                if args.interface == "0.0.0.0" or args.interface == "::1":
-                    webbrowser.open(f"http://localhost:{args.port}")
+                if primary_iface in ("0.0.0.0", "::", "::1"):
+                    webbrowser.open(f"http://localhost:{primary_port}")
                 else:
-                    webbrowser.open(f"http://{args.interface}:{args.port}")
+                    webbrowser.open(f"http://{primary_iface}:{primary_port}")
         server.start(threaded=False)
     elif args.addRightClick:
-        add_to_right_click_menu(args.interface, args.port, args.certfile, args.forcePort, args.name, args.http_to_https, args.allowResume, args.browser, args.uPnP,custome_name,args.browserAddress)
+        add_to_right_click_menu(interfaces, ports, args.certfile, args.forcePort, args.name, args.http_to_https, args.allowResume, args.browser, args.uPnP, custome_name, args.browserAddress)
     elif args.removeRightClick:
         remove_from_right_click_menu()
 

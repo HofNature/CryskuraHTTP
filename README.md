@@ -11,7 +11,7 @@ CryskuraHTTP is a lightweight, customizable HTTP(s) server implemented in Python
 
 ## Features
 
-CryskuraHTTP is an extension of Python's built-in `http.server`, with minimal dependencies. You can leverage it to implement Python HTTP services without needing to install large software or libraries. It can also be used as a file sharing tool, supporting file serving and uploading through the browser, and can be launched from the Windows right-click menu.
+CryskuraHTTP is an extension of Python's built-in `http.server`, with **zero external dependencies**. You can leverage it to implement Python HTTP services without needing to install large software or libraries. It can also be used as a file sharing tool, supporting file serving and uploading through the browser, and can be launched from the Windows right-click menu.
 
 - **Customizable Services**: Easily add custom services by extending the `BaseService` class.
 - **Customizable API Calls**: Define custom API calls with the `APIService` class.
@@ -26,6 +26,8 @@ CryskuraHTTP is an extension of Python's built-in `http.server`, with minimal de
 - **Resumable Downloads**: Supports resumable downloads for large files when serving files.
 - **Redirects**: Supports 301 and 308 redirects.
 - **SSL Support**: Optionally enable SSL by providing a certificate file.
+- **IPv6 & Dual-Stack**: Full IPv6 support with optional dual-stack mode (IPv4 + IPv6 on a single socket).
+- **Multi-IP/Port Listening**: Bind to multiple interfaces and ports simultaneously.
 - **Threaded Server**: Supports multi-threaded request handling for better performance.
 - **Command-Line Interface**: Run the server from the command line with custom settings.
 - **Right Click Support**: Supports right-click context menu for launching the server on Windows.
@@ -34,8 +36,7 @@ This project is not designed to replace full-scale, production-grade HTTP server
 
 ## Requirements
 
-- Python 3.x
-- `psutil` library
+- Python 3.7+ (no external dependencies)
 
 ## Installation
 
@@ -67,7 +68,7 @@ To start the server with default settings:
 
 ```python
 from cryskura import Server
-server = HTTPServer(interface="127.0.0.1", port=8080)
+server = Server(interface="127.0.0.1", port=8080)
 server.start()
 ```
 
@@ -134,10 +135,68 @@ This will show the available options:
 - `-rr, --removeRightClick`: Remove from right-click menu.
 - `-d PATH, --path PATH`: The path to the directory to serve.
 - `-n NAME, --name NAME`: The name of the server.
-- `-p PORT, --port PORT`: The port to listen on.
+- `-p PORT, --port PORT`: The port to listen on. Can be specified multiple times for multi-port listening.
 - `-c CERTFILE, --certfile CERTFILE`: The path to the certificate file.
-- `-i INTERFACE, --interface INTERFACE`: The interface to listen on.
+- `-i INTERFACE, --interface INTERFACE`: The interface to listen on. Can be specified multiple times for multi-IP listening. Accepts IPv4, IPv6 addresses, or hostnames.
 - `-j HTTP_TO_HTTPS, --http_to_https HTTP_TO_HTTPS`: Port to redirect HTTP requests to HTTPS.
+- `--dual-stack`: Enable IPv4/IPv6 dual-stack mode on IPv6 sockets (sets IPV6_V6ONLY=0). When enabled, a single IPv6 socket accepts both IPv4 and IPv6 connections.
+
+## Multi-IP/Port Listening & Dual-Stack
+
+The server supports listening on multiple interfaces and ports simultaneously. All combinations of the specified interfaces and ports are used.
+
+### Listening on Multiple Ports
+
+```python
+server = Server(interface="0.0.0.0", port=[8080, 8443])
+server.start()
+```
+
+Or from the command line:
+
+```sh
+cryskura -i 0.0.0.0 -p 8080 -p 8443
+```
+
+### Listening on Multiple Interfaces
+
+```python
+server = Server(interface=["192.168.1.5", "10.0.0.1"], port=8080)
+server.start()
+```
+
+### IPv6 and Dual-Stack
+
+Full IPv6 is supported. Use `::` for all IPv6 interfaces, `::1` for IPv6 localhost:
+
+```python
+# IPv6 only
+server = Server(interface="::1", port=8080)
+
+# Dual-stack: single socket accepts both IPv4 and IPv6
+server = Server(interface="::", port=8080, dual_stack=True)
+```
+
+From the command line:
+
+```sh
+# IPv6 localhost
+cryskura -i ::1 -p 8080
+
+# Dual-stack on all interfaces
+cryskura -i :: -p 8080 --dual-stack
+```
+
+> **Note**: On Linux, binding to `::` with `dual_stack` disabled (the default) still accepts IPv4 connections via IPv4-mapped IPv6 addresses on most distributions. The `--dual-stack` flag is mainly useful on Windows and macOS where `IPV6_V6ONLY` defaults to 1. Enabling it ensures consistent cross-platform behavior.
+
+### Mixed IPv4/IPv6 Multi-Bind
+
+```python
+server = Server(interface=["127.0.0.1", "::1"], port=[8080])
+server.start()
+```
+
+This creates two separate sockets — one for IPv4 on `127.0.0.1:8080` and one for IPv6 on `[::1]:8080`.
 
 ## Using as a Python Module
 
