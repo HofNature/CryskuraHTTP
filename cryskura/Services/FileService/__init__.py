@@ -13,7 +13,7 @@ import logging
 import os
 import mimetypes
 from http import HTTPStatus
-from typing import Optional, TYPE_CHECKING
+from typing import Callable, Optional, TYPE_CHECKING
 
 from ..BaseService import BaseService, Route
 from .directory import handle_directory
@@ -36,7 +36,7 @@ class FileService(BaseService):
         isFolder: bool = True,
         allowResume: bool = False,
         server_name: str = "CryskuraHTTP",
-        auth_func: Optional[function] = None,
+        auth_func: Optional[Callable] = None,
         allowUpload: bool = False,
         host: Optional[str] = None,
         port: Optional[int] = None,

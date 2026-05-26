@@ -1,8 +1,14 @@
+from __future__ import annotations
+
+from typing import Callable, Optional
+
 from . import BaseService, Route
 from .. import Handler
 
 class APIService(BaseService):
-    def __init__(self, remote_path, func:callable, methods=["GET","HEAD","POST"], type="prefix",auth_func=None,length_limit=1024*1024,host=None,port=None):
+    def __init__(self, remote_path, func: Callable, methods=None, type="prefix", auth_func=None, length_limit=1024*1024, host=None, port=None):
+        if methods is None:
+            methods = ["GET", "HEAD", "POST"]
         self.routes = [
             Route(remote_path, methods, type,host,port),
         ]
@@ -25,12 +31,3 @@ class APIService(BaseService):
             request.send_header(key, headers[key])
         request.end_headers()
         request.wfile.write(content)
-
-    # def handle_GET(self, request:Handler, path:list,args:dict):
-    #     self.handle_API(request, path, args, "GET")
-    
-    # def handle_HEAD(self, request:Handler, path:list,args:dict):
-    #     self.handle_API(request, path, args, "HEAD")
-
-    # def handle_POST(self, request:Handler, path:list,args:dict):
-    #     self.handle_API(request, path, args, "POST")

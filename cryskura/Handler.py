@@ -60,25 +60,6 @@ class HTTPRequestHandler(SimpleHTTPRequestHandler):
                 processed_args[arg[0]] = arg[1]
         return path,processed_args
     
-    # def do_OPERATION(self,operation:str):
-    #     path,args = self.split_Path()
-    #     for service in self.services:
-    #         for route in service.routes:
-    #             if route.match(path,operation):
-    #                 try:
-    #                     if operation=="GET":
-    #                         service.handle_GET(self,path,args)
-    #                     elif operation=="POST":
-    #                         service.handle_POST(self,path,args)
-    #                     elif operation=="HEAD":
-    #                         service.handle_HEAD(self,path,args)
-    #                     return
-    #                 except Exception as e:
-    #                     print(f"Error in {service.remote_path} {operation} handler: {e}")
-    #                     self.errsvc.handle(self,path,args,operation,HTTPStatus.INTERNAL_SERVER_ERROR)
-    #                     return
-    #     self.errsvc.handle(self,path,args,operation,HTTPStatus.NOT_FOUND)
-
     def handle_one_request(self):
         try:
             self.raw_requestline = self.rfile.readline(65537)
@@ -160,16 +141,7 @@ class HTTPRequestHandler(SimpleHTTPRequestHandler):
                 else:
                     self.errsvc.handle(self,path,args,self.command,HTTPStatus.NOT_FOUND)
 
-            # mname = 'do_' + self.command
-            # if not hasattr(self, mname):
-            #     self.send_error(
-            #         HTTPStatus.NOT_IMPLEMENTED,
-            #         "Unsupported method (%r)" % self.command)
-            #     return
-            # method = getattr(self, mname)
-            # method()
-
-            self.wfile.flush() #actually send the response if not already done.
+            self.wfile.flush()
         except TimeoutError as e:
             #a read or a write timed out.  Discard this connection
             self.log_error("Request timed out: %r", e)
@@ -182,12 +154,3 @@ class HTTPRequestHandler(SimpleHTTPRequestHandler):
                 self.close_connection = True
                 return
             raise
-        
-    # def do_GET(self):
-    #     self.do_OPERATION("GET")
-
-    # def do_HEAD(self):
-    #     self.do_OPERATION("HEAD")
-
-    # def do_POST(self):
-    #     self.do_OPERATION("POST")

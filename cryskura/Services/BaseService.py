@@ -1,3 +1,7 @@
+from __future__ import annotations
+
+from typing import Optional
+
 from .. import Handler
 from http import HTTPStatus
 
@@ -27,10 +31,7 @@ class Route:
                     path.pop(-1)
             else:
                 raise ValueError(f"Path {path} is not a valid path.")
-        self.path = path    
-        # for method in methods:
-        #     if method not in ["GET","POST","HEAD"]:
-        #         raise ValueError(f"Method {method} is not a valid method.")
+        self.path = path
         self.methods = methods
         if type not in ["prefix","exact"]:
             raise ValueError(f"Type {type} is not a valid type.")

@@ -137,7 +137,11 @@ def _send_streamed_on_the_fly(
                     for fn in filenames:
                         fp = os.path.join(dirpath, fn)
                         resolved = os.path.realpath(fp)
-                        if not (resolved == root_real or resolved.startswith(root_real + os.sep)):
+                        try:
+                            common = os.path.commonpath([resolved, root_real])
+                        except ValueError:
+                            common = None
+                        if not (resolved == root_real or common == root_real):
                             logger.warning("Skipping out-of-tree path in zip: %s -> %s", fp, resolved)
                             continue
                         arcname = os.path.join(
