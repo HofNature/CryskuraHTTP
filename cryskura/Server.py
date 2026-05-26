@@ -64,19 +64,24 @@ class HTTPServer:
         local_addrs = _get_local_addresses()
         local_addrs.update(['0.0.0.0', '::', '127.0.0.1', '::1'])
         for iface, _ in self.bind_addresses:
-            if iface in ('0.0.0.0', '::', '127.0.0.1', '::1', 'localhost'):
+            if iface.startswith('127.'):
                 continue
             if iface not in local_addrs:
                 try:
-                    socket.getaddrinfo(iface, None, type=socket.SOCK_STREAM)
-                except socket.gaierror:
+                    s = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+                    try:
+                        s.bind((iface, 0))
+                    finally:
+                        s.close()
+                except OSError:
                     available = sorted(
                         a for a in local_addrs
-                        if not a.startswith('127.') and a != '::1'
+                        if not a.startswith('127.') and a != '::1' and not a == "::" and not a == "0.0.0.0"
                     )
                     raise ValueError(
                         f"Interface {iface} not found.\n"
-                        f"Available addresses: {', '.join(available) if available else 'none detected'}"
+                        f"Available addresses: \n - {'\n - '.join(available) if available else 'none detected'}\n"
+                        "Use '::1' for loopback, or '::' for all interfaces."
                     )
 
         # --- Validate port ranges and permissions ---
