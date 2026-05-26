@@ -26,7 +26,7 @@ CryskuraHTTP is an extension of Python's built-in `http.server`, with **zero ext
 - **Resumable Downloads**: Supports resumable downloads for large files when serving files.
 - **Redirects**: Supports 301 and 308 redirects.
 - **SSL Support**: Optionally enable SSL by providing a certificate file.
-- **IPv6 & Dual-Stack**: Full IPv6 support with optional dual-stack mode (IPv4 + IPv6 on a single socket).
+- **IPv6 & Dual-Stack**: Full IPv6 support with dual-stack mode enabled by default.
 - **Multi-IP/Port Listening**: Bind to multiple interfaces and ports simultaneously.
 - **Threaded Server**: Supports multi-threaded request handling for better performance.
 - **Command-Line Interface**: Run the server from the command line with custom settings.
@@ -68,16 +68,22 @@ To start the server with default settings:
 
 ```python
 from cryskura import Server
-server = Server(interface="127.0.0.1", port=8080)
+server = Server()
 server.start()
 ```
 
-This will start the server on `localhost` at port `8080` and serve files from the current directory.
+This starts on `[::1]:8080` with dual-stack enabled, serving the current directory.
 
-Or you can run the server from the command line:
+The CLI listens on `::` (all interfaces, dual-stack) at port `8080` by default:
 
 ```sh
-cryskura --interface 127.0.0.1 --port 8080 --path /path/to/serve
+cryskura
+```
+
+You can also specify a custom interface, port, and directory:
+
+```sh
+cryskura --interface ::1 --port 8080 --path /path/to/serve
 ```
 
 This will start the server on `localhost` at port `8080` and serve files from `/path/to/serve`.
@@ -137,25 +143,38 @@ This will show the available options:
 - `-n NAME, --name NAME`: The name of the server.
 - `-p PORT, --port PORT`: The port to listen on. Can be specified multiple times for multi-port listening.
 - `-c CERTFILE, --certfile CERTFILE`: The path to the certificate file.
-- `-i INTERFACE, --interface INTERFACE`: The interface to listen on. Can be specified multiple times for multi-IP listening. Accepts IPv4, IPv6 addresses, or hostnames.
+- `-i INTERFACE, --interface INTERFACE`: The interface to listen on. Can be specified multiple times for multi-IP listening. Accepts IPv4, IPv6 addresses, or hostnames. Default: `::`.
 - `-j HTTP_TO_HTTPS, --http_to_https HTTP_TO_HTTPS`: Port to redirect HTTP requests to HTTPS.
-- `--dual-stack`: Enable IPv4/IPv6 dual-stack mode on IPv6 sockets (sets IPV6_V6ONLY=0). When enabled, a single IPv6 socket accepts both IPv4 and IPv6 connections.
+- `--single-stack`: Disable dual-stack mode. IPv6 sockets will only accept IPv6 connections (sets IPV6_V6ONLY=1). Useful on platforms with broken dual-stack support.
 
 ## Multi-IP/Port Listening & Dual-Stack
 
-The server supports listening on multiple interfaces and ports simultaneously. All combinations of the specified interfaces and ports are used.
+The server supports listening on multiple interfaces and ports simultaneously. All combinations of the specified interfaces and ports are used. **Dual-stack is enabled by default** — binding to an IPv6 address accepts both IPv4 and IPv6 connections.
+
+### Default Behavior
+
+```python
+# Default: 127.0.0.1:8080, dual-stack enabled
+server = Server()
+server.start()
+```
+
+```sh
+# CLI default: [::]:8080 (all interfaces, dual-stack)
+cryskura
+```
 
 ### Listening on Multiple Ports
 
 ```python
-server = Server(interface="0.0.0.0", port=[8080, 8443])
+server = Server(interface="::", port=[8080, 8443])
 server.start()
 ```
 
 Or from the command line:
 
 ```sh
-cryskura -i 0.0.0.0 -p 8080 -p 8443
+cryskura -i :: -p 8080 -p 8443
 ```
 
 ### Listening on Multiple Interfaces
@@ -170,24 +189,30 @@ server.start()
 Full IPv6 is supported. Use `::` for all IPv6 interfaces, `::1` for IPv6 localhost:
 
 ```python
-# IPv6 only
-server = Server(interface="::1", port=8080)
+# IPv6 + IPv4 via dual-stack (default)
+server = Server(interface="::", port=8080)
 
-# Dual-stack: single socket accepts both IPv4 and IPv6
-server = Server(interface="::", port=8080, dual_stack=True)
+# IPv6-only (no IPv4)
+server = Server(interface="::", port=8080, dual_stack=False)
+
+# IPv4-only
+server = Server(interface="0.0.0.0", port=8080)
 ```
 
 From the command line:
 
 ```sh
-# IPv6 localhost
-cryskura -i ::1 -p 8080
+# All interfaces, dual-stack (default)
+cryskura
 
-# Dual-stack on all interfaces
-cryskura -i :: -p 8080 --dual-stack
+# IPv6 only, disable dual-stack
+cryskura --single-stack
+
+# IPv4 only
+cryskura -i 0.0.0.0
 ```
 
-> **Note**: On Linux, binding to `::` with `dual_stack` disabled (the default) still accepts IPv4 connections via IPv4-mapped IPv6 addresses on most distributions. The `--dual-stack` flag is mainly useful on Windows and macOS where `IPV6_V6ONLY` defaults to 1. Enabling it ensures consistent cross-platform behavior.
+> **Note**: Dual-stack is implemented by setting `IPV6_V6ONLY=0` on IPv6 sockets. On platforms where this is unreliable, use `--single-stack` and explicitly bind to `-i :: -i 0.0.0.0` instead.
 
 ### Mixed IPv4/IPv6 Multi-Bind
 

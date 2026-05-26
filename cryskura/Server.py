@@ -14,26 +14,36 @@ from .Services import BaseService, FileService, ErrorService
 
 class _BoundHTTPServer(ThreadingHTTPServer):
     """A ThreadingHTTPServer subclass that uses per-instance address_family
-    to avoid class-variable races."""
+    to avoid class-variable races and supports dual-stack mode."""
 
     allow_reuse_address = True
 
     def __init__(self, server_address, RequestHandlerClass,
-                 family=None, bind_and_activate=True):
+                 family=None, dual_stack=False, bind_and_activate=True):
         if family is not None:
             self.address_family = family
+        self._family = family or self.address_family
+        self._dual_stack = dual_stack
         super().__init__(server_address, RequestHandlerClass, bind_and_activate)
+
+    def server_bind(self):
+        if self._family == socket.AF_INET6:
+            try:
+                self.socket.setsockopt(socket.IPPROTO_IPV6, socket.IPV6_V6ONLY, 0 if self._dual_stack else 1)
+            except OSError:
+                pass
+        super().server_bind()
 
 
 class HTTPServer:
     def __init__(self, interface=None, port=8080, services=None,
                  error_service=None, server_name: str = "CryskuraHTTP/1.0",
                  forcePort: bool = False, certfile=None, uPnP=False,
-                 dual_stack: bool = False):
+                 dual_stack: bool = True):
 
         # --- Normalize bind addresses ---
         if interface is None:
-            interface = "127.0.0.1"
+            interface = "::1"
         if isinstance(interface, str):
             interfaces = [interface]
         else:
@@ -49,33 +59,6 @@ class HTTPServer:
                 self.bind_addresses.append((iface, p))
 
         self.dual_stack = dual_stack
-
-        # --- Dual-stack: on platforms where IPV6_V6ONLY defaults to 1 ---
-        # (Windows), add explicit IPv4 sockets. On Linux/macOS, the IPv6
-        # socket already accepts IPv4 connections (IPV6_V6ONLY defaults to 0).
-        if dual_stack:
-            try:
-                with socket.socket(socket.AF_INET6, socket.SOCK_STREAM) as s:
-                    ipv6only_default = s.getsockopt(socket.IPPROTO_IPV6, socket.IPV6_V6ONLY)
-            except OSError:
-                ipv6only_default = 1
-            if ipv6only_default == 1:
-                extra = []
-                for iface, p in self.bind_addresses:
-                    try:
-                        info = socket.getaddrinfo(iface, None, type=socket.SOCK_STREAM,
-                                                   flags=socket.AI_PASSIVE)
-                        family = info[0][0]
-                    except socket.gaierror:
-                        continue
-                    if family == socket.AF_INET6:
-                        if iface in ('::', '0:0:0:0:0:0:0:0'):
-                            extra.append(('0.0.0.0', p))
-                        elif iface == '::1':
-                            extra.append(('127.0.0.1', p))
-                for addr in extra:
-                    if addr not in self.bind_addresses:
-                        self.bind_addresses.append(addr)
 
         # --- Validate interfaces (lightweight, stdlib only) ---
         local_addrs = _get_local_addresses()
@@ -170,7 +153,7 @@ class HTTPServer:
             try:
                 server = _BoundHTTPServer(
                     (iface, port), handler,
-                    family=family)
+                    family=family, dual_stack=self.dual_stack)
             except OSError as e:
                 if e.errno == 98 or getattr(e, 'winerror', 0) == 10048:
                     msg = f"Port {port} on {iface} is already in use."

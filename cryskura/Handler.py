@@ -16,7 +16,13 @@ class HTTPRequestHandler(SimpleHTTPRequestHandler):
         self.errsvc = errsvc
         directory = "/dev/null"
         super().__init__(*args, directory=directory, **kwargs)
-    
+
+    def address_string(self):
+        addr = self.client_address[0]
+        if addr.startswith('::ffff:'):
+            return addr[7:]
+        return addr
+
     def split_Path(self):
         # 将路径分割为路径和参数
         path=unquote(self.path).split("?",1)
@@ -155,6 +161,13 @@ class HTTPRequestHandler(SimpleHTTPRequestHandler):
             self.log_error("Request timed out: %r", e)
             self.close_connection = True
             return
+        except Exception as e:
+            if isinstance(e, (ConnectionAbortedError, ConnectionResetError, BrokenPipeError)) or \
+               (ssl and isinstance(e, (ssl.SSLEOFError, ssl.SSLError))):
+                self.log_error("Client disconnected: %r", e)
+                self.close_connection = True
+                return
+            raise
         
     # def do_GET(self):
     #     self.do_OPERATION("GET")

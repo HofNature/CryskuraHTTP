@@ -26,7 +26,7 @@ CryskuraHTTP 是 Python 内置 `http.server` 的扩展，**无需任何外部依
 - **可续传下载**：在提供文件服务时支持大文件的可续传下载。
 - **重定向**：支持 301 和 308 重定向。
 - **SSL 支持**：通过提供证书文件可选启用 SSL。
-- **IPv6 与双栈**：完整 IPv6 支持，可选双栈模式（单套接字同时接受 IPv4 和 IPv6 连接）。
+- **IPv6 与双栈**：完整 IPv6 支持，支持自动双栈模式。
 - **多 IP/端口监听**：可同时绑定多个网络接口和端口。
 - **多线程服务器**：支持多线程请求处理以提高性能。
 - **命令行界面**：通过命令行运行服务器并进行自定义设置。
@@ -68,16 +68,22 @@ CryskuraHTTP 是 Python 内置 `http.server` 的扩展，**无需任何外部依
 
 ```python
 from cryskura import Server
-server = Server(interface="127.0.0.1", port=8080)
+server = Server()
 server.start()
 ```
 
-这将在 `localhost` 上的端口 `8080` 启动服务器，并从当前目录提供文件服务。
+这将在 `[::1]:8080` 启动服务器，从当前目录提供文件服务。
 
-或者，您可以从命令行运行服务器：
+命令行默认监听 `[::]:8080`（所有接口，双栈）：
 
 ```sh
-cryskura --interface 127.0.0.1 --port 8080 --path /path/to/serve
+cryskura
+```
+
+也可以手动指定接口、端口和目录：
+
+```sh
+cryskura --interface ::1 --port 8080 --path /path/to/serve
 ```
 
 这将在 `localhost` 上的端口 `8080` 启动服务器，并从 `/path/to/serve` 提供文件服务。
@@ -137,25 +143,38 @@ cryskura --help
 - `-n NAME, --name NAME`：服务器的名称。
 - `-p PORT, --port PORT`：监听的端口。可多次指定以实现多端口监听。
 - `-c CERTFILE, --certfile CERTFILE`：证书文件的路径。
-- `-i INTERFACE, --interface INTERFACE`：监听的接口。可多次指定以实现多 IP 监听。支持 IPv4、IPv6 地址或主机名。
+- `-i INTERFACE, --interface INTERFACE`：监听的接口。可多次指定以实现多 IP 监听。支持 IPv4、IPv6 地址或主机名。默认值：`::`。
 - `-j HTTP_TO_HTTPS, --http_to_https HTTP_TO_HTTPS`：将 HTTP 请求重定向到 HTTPS 的端口。
-- `--dual-stack`：在 IPv6 套接字上启用 IPv4/IPv6 双栈模式（设置 IPV6_V6ONLY=0）。启用后，单个 IPv6 套接字可同时接受 IPv4 和 IPv6 连接。
+- `--single-stack`：禁用双栈模式。IPv6 套接字将只接受 IPv6 连接（IPV6_V6ONLY=1）。适用于双栈支持有问题的平台。
 
 ## 多 IP/端口监听与双栈
 
 服务器支持同时监听多个网络接口和端口，所有指定的接口和端口组合均会被使用。
 
+### 默认行为
+
+```python
+# 默认：127.0.0.1:8080，自动双栈
+server = Server()
+server.start()
+```
+
+```sh
+# 命令行默认：[::]:8080，自动双栈
+cryskura
+```
+
 ### 监听多个端口
 
 ```python
-server = Server(interface="0.0.0.0", port=[8080, 8443])
+server = Server(interface="::", port=[8080, 8443])
 server.start()
 ```
 
 或通过命令行：
 
 ```sh
-cryskura -i 0.0.0.0 -p 8080 -p 8443
+cryskura -i :: -p 8080 -p 8443
 ```
 
 ### 监听多个接口
@@ -170,24 +189,30 @@ server.start()
 完整支持 IPv6。使用 `::` 表示所有 IPv6 接口，`::1` 表示 IPv6 本地回环：
 
 ```python
-# 仅 IPv6
-server = Server(interface="::1", port=8080)
+# IPv6 + IPv4 双栈（默认）
+server = Server(interface="::", port=8080)
 
-# 双栈模式：单套接字同时接受 IPv4 和 IPv6
-server = Server(interface="::", port=8080, dual_stack=True)
+# 仅 IPv6（关闭双栈）
+server = Server(interface="::", port=8080, dual_stack=False)
+
+# 仅 IPv4
+server = Server(interface="0.0.0.0", port=8080)
 ```
 
 通过命令行：
 
 ```sh
-# IPv6 本地回环
-cryskura -i ::1 -p 8080
+# 所有接口，双栈模式（默认）
+cryskura -i ::
 
-# 在所有接口上启用双栈
-cryskura -i :: -p 8080 --dual-stack
+# 仅 IPv6，禁用双栈
+cryskura -i :: --single-stack
+
+# 仅 IPv4
+cryskura -i 0.0.0.0
 ```
 
-> **注意**：在 Linux 上，绑定到 `::` 且 `dual_stack` 为默认值（关闭）时，大多数发行版仍然通过 IPv4 映射的 IPv6 地址接受 IPv4 连接。`--dual-stack` 标志主要用于 Windows 和 macOS，这些平台上 `IPV6_V6ONLY` 默认为 1。启用它可以确保跨平台行为一致。
+> **注意**：双栈通过设置 `IPV6_V6ONLY=0` 实现。在部分平台上此方式可能不可靠，可使用 `--single-stack` 并显式绑定 `-i :: -i 0.0.0.0` 替代。
 
 ### 混合 IPv4/IPv6 多地址绑定
 

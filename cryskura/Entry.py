@@ -2,6 +2,7 @@ import os
 import sys
 import ctypes
 import locale
+import socket
 try:
     import webbrowser
 except ImportError:
@@ -44,7 +45,7 @@ def right_click_menu_check():
         pass
     return winreg,False
 
-def add_to_right_click_menu(interface="0.0.0.0", port=8080, certfile=None, forcePort:bool=False, name=None, http_to_https=None, allowResume=False, browser=False, uPnP=False, custome_name=False, browserAddress=None):
+def add_to_right_click_menu(interface="0.0.0.0", port=8080, certfile=None, forcePort:bool=False, name=None, http_to_https=None, allowResume=False, browser=False, uPnP=False, custome_name=False, browserAddress=None, single_stack=False):
     winreg,exist = right_click_menu_check()
     if exist:
         print("CryskuraHTTP is already in the right-click menu.")
@@ -75,6 +76,8 @@ def add_to_right_click_menu(interface="0.0.0.0", port=8080, certfile=None, force
         args += f' -ba "{browserAddress}"'
     if uPnP:
         args += " -u"
+    if single_stack:
+        args += " -s"
     args_web = args + " -w"
     args_upload = args + " -t"
     # 针对文件夹，及文件夹内部的空白处，创建右键菜单项，支持多语言
@@ -158,11 +161,11 @@ def main():
     import argparse
     parser = argparse.ArgumentParser(description="CryskuraHTTP Server")
     parser.add_argument("-i", "--interface", action="append", default=None,
-                        help="Interface to listen on (can be specified multiple times). Default: 0.0.0.0")
+                        help="Interface to listen on (can be specified multiple times). Default: :: (all interfaces)")
     parser.add_argument("-p", "--port", action="append", type=int, default=None,
                         help="Port to listen on (can be specified multiple times). Default: 8080")
-    parser.add_argument("--dual-stack", action="store_true", default=False,
-                        help="Enable IPv4/IPv6 dual-stack on IPv6 sockets (sets IPV6_V6ONLY=0).")
+    parser.add_argument("-s","--single-stack", action="store_true", default=False,
+                        help="Disable dual-stack mode, which allows IPv4 and IPv6 to be served on the same socket. This may be necessary on some platforms that do not support dual-stack sockets properly. By default, dual-stack mode is enabled if the platform supports it.")
     parser.add_argument("-c", "--certfile", type=str, default=None, help="The path to the certificate file.")
     parser.add_argument("-f", "--forcePort", action="store_true", help="Force to use the specified port even if it is already in use.")
     parser.add_argument("-d", "--path", type=str, default=None, help="The path to the directory to serve.")
@@ -187,7 +190,7 @@ def main():
 
     # Normalize interfaces and ports
     if args.interface is None:
-        interfaces = ["0.0.0.0"]
+        interfaces = ["::"]
     else:
         interfaces = args.interface
     if args.port is None:
@@ -224,13 +227,13 @@ def main():
             raise ValueError(f"Certfile {args.certfile} does not exist.")
         if args.http_to_https is not None and lanuch:
             rs=RedirectService("/","/",default_protocol="https")#f"https://{args.interface}:{args.port}")
-            redirect_server = HTTPServer(interface=interfaces, port=args.http_to_https, services=[rs], server_name=args.name, forcePort=args.forcePort, uPnP=args.uPnP)
+            redirect_server = HTTPServer(interface=interfaces, port=args.http_to_https, services=[rs], server_name=args.name, forcePort=args.forcePort, uPnP=args.uPnP, dual_stack=not args.single_stack)
             redirect_server.start()
     elif args.http_to_https is not None:
         raise ValueError("HTTP to HTTPS redirection requires a certificate file.")
     
     if lanuch:
-        server = HTTPServer(interface=interfaces, port=ports, services=services, server_name=args.name, forcePort=args.forcePort, certfile=args.certfile, uPnP=args.uPnP, dual_stack=args.dual_stack)
+        server = HTTPServer(interface=interfaces, port=ports, services=services, server_name=args.name, forcePort=args.forcePort, certfile=args.certfile, uPnP=args.uPnP, dual_stack=not args.single_stack)
         if args.browser:
             primary_iface = interfaces[0]
             primary_port = ports[0]
@@ -253,7 +256,7 @@ def main():
                     webbrowser.open(f"http://{primary_iface}:{primary_port}")
         server.start(threaded=False)
     elif args.addRightClick:
-        add_to_right_click_menu(interfaces, ports, args.certfile, args.forcePort, args.name, args.http_to_https, args.allowResume, args.browser, args.uPnP, custome_name, args.browserAddress)
+        add_to_right_click_menu(interfaces, ports, args.certfile, args.forcePort, args.name, args.http_to_https, args.allowResume, args.browser, args.uPnP, custome_name, args.browserAddress, single_stack = args.single_stack)
     elif args.removeRightClick:
         remove_from_right_click_menu()
 
