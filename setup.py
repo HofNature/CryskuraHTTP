@@ -14,7 +14,7 @@ long_description += long_description_zh
 
 setup(
     name="cryskura",
-    version="1.0.0rc1",
+    version="1.0.0rc2",
     author="HofNature",
     description="A straightforward Python package that functions as an HTTP(s) server",
     long_description=long_description,
