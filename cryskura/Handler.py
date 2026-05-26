@@ -17,6 +17,20 @@ class HTTPRequestHandler(SimpleHTTPRequestHandler):
         directory = "/dev/null"
         super().__init__(*args, directory=directory, **kwargs)
 
+    def finish(self):
+        if not self.wfile.closed:
+            try:
+                self.wfile.flush()
+            except (OSError, ValueError):
+                pass
+        if ssl and isinstance(self.connection, ssl.SSLSocket):
+            try:
+                self.connection.unwrap()
+            except Exception:
+                pass
+        self.wfile.close()
+        self.rfile.close()
+
     def address_string(self):
         addr = self.client_address[0]
         if addr.startswith('::ffff:'):
@@ -80,7 +94,7 @@ class HTTPRequestHandler(SimpleHTTPRequestHandler):
             if not self.parse_request():
                 # An error code has been sent, just exit
                 return
-            
+
             path,args = self.split_Path()
             host = self.headers.get('Host', None)
 

@@ -172,6 +172,7 @@ class HTTPServer:
                         f"Error loading certificate: {e}\n"
                         "Please provide a valid certificate file.\n"
                         "Only PEM file with both certificate and private key is supported.")
+                ssl_ctx.set_alpn_protocols(['http/1.1'])
                 server.socket = ssl_ctx.wrap_socket(
                     server.socket, server_side=True)
 
@@ -202,8 +203,9 @@ class HTTPServer:
 
         if not threaded:
             try:
-                for _, thread in self.servers:
-                    thread.join()
+                while any(t.is_alive() for _, t in self.servers):
+                    for _, t in self.servers:
+                        t.join(timeout=0.25)
             except KeyboardInterrupt:
                 print(f"\nServer on port {self.port} stopped.")
                 self.stop()
