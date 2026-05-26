@@ -78,9 +78,10 @@ class HTTPServer:
                         a for a in local_addrs
                         if not a.startswith('127.') and a != '::1' and not a == "::" and not a == "0.0.0.0"
                     )
+                    nl = '\n - '
                     raise ValueError(
                         f"Interface {iface} not found.\n"
-                        f"Available addresses: \n - {'\n - '.join(available) if available else 'none detected'}\n"
+                        f"Available addresses: {nl}{nl.join(available) if available else 'none detected'}\n"
                         "Use '::1' for loopback, or '::' for all interfaces."
                     )
 
