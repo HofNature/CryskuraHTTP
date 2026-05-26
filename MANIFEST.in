@@ -1,3 +1,5 @@
+include README.md
+include README_zh.md
 include cryskura/Pages/directory.html
 include cryskura/Pages/error.html
 include cryskura/Pages/login.html

@@ -41,11 +41,10 @@ from .BaseService import BaseService, Route
 
 if TYPE_CHECKING:
     from ..Handler import HTTPRequestHandler as Handler
+    SimpleAPIFunc = Callable[..., tuple[int, Any]]
 
 logger = logging.getLogger(__name__)
 
-# 用户函数签名：(path_params: dict, body: Any) -> (int, Any)
-SimpleAPIFunc = Callable[..., tuple[int, Any]] 
 
 class SimpleAPIService(BaseService):
     """单个 JSON API 端点，自动处理 JSON 序列化。

@@ -24,5 +24,6 @@ class ErrorService(BaseService):
             Page=Page.replace('background: url("Cryskura.png");', f'background: url("{Cryskura_Icon}");')
             Page=Page.replace("<script>", f"<script>let error='{str(status)+' '+statusStr}';")
             request.wfile.write(Page.encode())
-        else: # 其他方法不返回内容
+        else:
+            request.send_header("Content-Length", "0")
             request.end_headers()
