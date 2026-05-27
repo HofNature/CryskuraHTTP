@@ -10,6 +10,7 @@ except ImportError:
 from cryskura import __version__
 from .Server import HTTPServer
 from .Services import FileService, PageService,RedirectService
+from .CORSManager import CORSConfig
 
 current_pid = os.getpid()
 resource_path = os.path.dirname(os.path.abspath(__file__))
@@ -180,6 +181,16 @@ def main():
     parser.add_argument("-ar", "--addRightClick", action="store_true", help="Add to right-click menu.")
     parser.add_argument("-rr", "--removeRightClick", action="store_true", help="Remove from right-click menu.")
     parser.add_argument("-v", "--version", action="version", version=f"CryskuraHTTP/{__version__}")
+    parser.add_argument("-tp", "--trusted-proxy", action="append", default=None,
+                        help="Trusted reverse proxy IP or CIDR range (can be specified multiple times).")
+    parser.add_argument("--cors-origin", type=str, default=None, action="append",
+                        help="CORS allowed origin (can be specified multiple times). Default: *")
+    parser.add_argument("--cors-credentials", action="store_true", default=False,
+                        help="Enable CORS credentials support.")
+    parser.add_argument("--cors-max-age", type=int, default=86400,
+                        help="CORS preflight max age in seconds. Default: 86400")
+    parser.add_argument("--log-dir", type=str, default=None,
+                        help="Directory to write log files. Disabled by default.")
     args = parser.parse_args()
 
     if args.name is None:
@@ -207,6 +218,16 @@ def main():
             raise ValueError(f"Path {args.path} is not a directory.")
     else:
         args.path = os.getcwd()
+
+    if args.cors_origin is not None:
+        cors = CORSConfig(
+            allow_origins=args.cors_origin,
+            allow_credentials=args.cors_credentials,
+            max_age=args.cors_max_age,
+        )
+    else:
+        cors = None
+
     if args.webMode:
         if args.allowResume:
             # raise ValueError("Web mode does not support resume download.")
@@ -227,13 +248,13 @@ def main():
             raise ValueError(f"Certfile {args.certfile} does not exist.")
         if args.http_to_https is not None and lanuch:
             rs=RedirectService("/","/",default_protocol="https")#f"https://{args.interface}:{args.port}")
-            redirect_server = HTTPServer(interface=interfaces, port=args.http_to_https, services=[rs], server_name=args.name, forcePort=args.forcePort, uPnP=args.uPnP, dual_stack=not args.single_stack)
+            redirect_server = HTTPServer(interface=interfaces, port=args.http_to_https, services=[rs], server_name=args.name, forcePort=args.forcePort, uPnP=args.uPnP, dual_stack=not args.single_stack, trusted_proxy_ips=args.trusted_proxy, cors=cors)
             redirect_server.start()
     elif args.http_to_https is not None:
         raise ValueError("HTTP to HTTPS redirection requires a certificate file.")
     
     if lanuch:
-        server = HTTPServer(interface=interfaces, port=ports, services=services, server_name=args.name, forcePort=args.forcePort, certfile=args.certfile, uPnP=args.uPnP, dual_stack=not args.single_stack)
+        server = HTTPServer(interface=interfaces, port=ports, services=services, server_name=args.name, forcePort=args.forcePort, certfile=args.certfile, uPnP=args.uPnP, dual_stack=not args.single_stack, trusted_proxy_ips=args.trusted_proxy, cors=cors, log_dir=args.log_dir)
         if args.browser:
             primary_iface = interfaces[0]
             primary_port = ports[0]

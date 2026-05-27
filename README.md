@@ -146,6 +146,11 @@ This will show the available options:
 - `-i INTERFACE, --interface INTERFACE`: The interface to listen on. Can be specified multiple times for multi-IP listening. Accepts IPv4, IPv6 addresses, or hostnames. Default: `::`.
 - `-j HTTP_TO_HTTPS, --http_to_https HTTP_TO_HTTPS`: Port to redirect HTTP requests to HTTPS.
 - `--single-stack`: Disable dual-stack mode. IPv6 sockets will only accept IPv6 connections (sets IPV6_V6ONLY=1). Useful on platforms with broken dual-stack support.
+- `-tp, --trusted-proxy`: Trusted reverse proxy IP or CIDR range. Can be specified multiple times.
+- `--cors-origin`: CORS allowed origin. Can be specified multiple times (default: `*`).
+- `--cors-credentials`: Enable CORS credentials support.
+- `--cors-max-age`: CORS preflight max age in seconds (default: 86400).
+- `--log-dir`: Directory path for log files. Disabled when not set.
 
 ## Multi-IP/Port Listening & Dual-Stack
 
@@ -415,6 +420,74 @@ class MyService(BaseService):
         request.send_header("Content-Type", "text/plain")
         request.end_headers()
         request.wfile.write(b"Hello from MyService!")
+```
+
+### Reverse Proxy Support
+
+When CryskuraHTTP runs behind a reverse proxy (nginx, HAProxy, etc.), configure trusted proxy IPs so that `X-Forwarded-*` headers are used for client IP, scheme, and host:
+
+```python
+from cryskura import Server
+from cryskura.Services import FileService
+
+server = Server(
+    services=[FileService(".", "/")],
+    trusted_proxy_ips=["127.0.0.1", "10.0.0.0/8"],
+)
+```
+
+Or via CLI:
+
+```bash
+cryskura -tp 127.0.0.1 -tp 10.0.0.0/8
+```
+
+When a request comes from a trusted IP, the server uses:
+- `X-Forwarded-For` (leftmost IP) for `address_string()`
+- `X-Forwarded-Proto` for the request scheme
+- `X-Forwarded-Host` and `X-Forwarded-Port` for virtual host routing
+
+### CORS Configuration
+
+Configure CORS headers globally or per-service:
+
+```python
+from cryskura import Server, CORSConfig, CORSManager
+from cryskura.Services import FileService, AuthService
+
+# Simple: one CORSConfig for all services
+cors = CORSConfig(
+    allow_origins=["https://example.com"],
+    allow_credentials=True,
+)
+server = Server(services=[...], cors=cors)
+
+# Advanced: per-service overrides
+cors_mgr = CORSManager(CORSConfig(allow_origins=["*"]))
+cors_mgr.set_service_override(
+    AuthService, CORSConfig(allow_origins=["https://auth.example.com"])
+)
+server = Server(services=[...], cors=cors_mgr)
+```
+
+CLI options:
+
+```bash
+cryskura --cors-origin https://example.com --cors-credentials --cors-max-age 3600
+```
+
+### Logging
+
+Enable file-based logging by providing a `log_dir`:
+
+```python
+server = Server(services=[...], log_dir="/var/log/cryskura")
+```
+
+Logs are written to `<log_dir>/latest/access.log` and `<log_dir>/latest/server.log`. On server start and daily at midnight, the `latest` directory is rotated to a timestamped name (e.g., `2026-05-27T15-30-00/`).
+
+```bash
+cryskura --log-dir /var/log/cryskura
 ```
 
 ## Using the uPnP Client

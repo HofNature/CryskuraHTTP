@@ -2,6 +2,7 @@ try:
     import ssl
 except ImportError:
     ssl = None
+import sys
 from . import __version__
 from urllib.parse import unquote
 from http import HTTPStatus
@@ -11,9 +12,13 @@ class HTTPRequestHandler(SimpleHTTPRequestHandler):
     server_version = "CryskuraHTTP/" + __version__
     index_pages=()
     
-    def __init__(self, *args, services, errsvc, directory=None, **kwargs):
+    def __init__(self, *args, services, errsvc, directory=None,
+                 proxy=None, cors_manager=None, log_manager=None, **kwargs):
         self.services = services
         self.errsvc = errsvc
+        self.proxy = proxy
+        self.cors_manager = cors_manager
+        self.log_manager = log_manager
         directory = "/dev/null"
         super().__init__(*args, directory=directory, **kwargs)
 
@@ -32,10 +37,35 @@ class HTTPRequestHandler(SimpleHTTPRequestHandler):
         self.rfile.close()
 
     def address_string(self):
+        if hasattr(self, 'proxy') and self.proxy is not None:
+            return self.proxy.get_client_ip(self)
         addr = self.client_address[0]
         if addr.startswith('::ffff:'):
             return addr[7:]
         return addr
+
+    def send_response(self, code, message=None):
+        self._response_status = code
+        self._response_length = 0
+        self._cors_manual = False
+        super().send_response(code, message)
+
+    def send_header(self, keyword, value):
+        if keyword == "Content-Length":
+            try:
+                self._response_length = int(value)
+            except (ValueError, TypeError):
+                pass
+        if keyword.startswith("Access-Control-"):
+            self._cors_manual = True
+        super().send_header(keyword, value)
+
+    def end_headers(self):
+        if (hasattr(self, 'cors_manager') and self.cors_manager is not None
+                and not getattr(self, '_cors_manual', False)):
+            service = getattr(self, '_current_service', None)
+            self.cors_manager.add_cors_headers(self, self.command, service)
+        super().end_headers()
 
     def split_Path(self):
         # 将路径分割为路径和参数
@@ -77,35 +107,48 @@ class HTTPRequestHandler(SimpleHTTPRequestHandler):
                 return
 
             path,args = self.split_Path()
-            host = self.headers.get('Host', None)
 
-            if host is None:
-                port = None
-            else:
-                try:
-                    if host.startswith('['):  # IPv6 address
-                        if ']' in host:
-                            host, _, port = host[1:].partition(']')
-                            if port.startswith(':'):
-                                port = port[1:]
-                            else:
-                                port = None
-                        else:
-                            host = None
-                            port = None
-                    else:  # IPv4 or hostname
-                        host, _, port = host.partition(':')
-                    if port:
-                        try:
-                            port = int(port)
-                        except ValueError:
-                            print("Invalid port number %r", port)
-                            port = None
-                            return
-                except Exception:
-                    print("Invalid host %r", host)
-                    host = None
+            host = None
+            port = None
+
+            if hasattr(self, 'proxy') and self.proxy is not None:
+                host, port = self.proxy.get_host_port(self)
+
+            if host is None and port is None:
+                host = self.headers.get('Host', None)
+                if host is None:
                     port = None
+                else:
+                    try:
+                        if host.startswith('['):  # IPv6 address
+                            if ']' in host:
+                                host, _, port = host[1:].partition(']')
+                                if port.startswith(':'):
+                                    port = port[1:]
+                                else:
+                                    port = None
+                            else:
+                                host = None
+                                port = None
+                        else:  # IPv4 or hostname
+                            host, _, port = host.partition(':')
+                        if port:
+                            try:
+                                port = int(port)
+                            except ValueError:
+                                if hasattr(self, 'log_manager') and self.log_manager is not None:
+                                    self.log_manager.error(f"Invalid port number {port!r}")
+                                else:
+                                    print(f"Invalid port number {port!r}", file=sys.stderr)
+                                port = None
+                                return
+                    except Exception:
+                        if hasattr(self, 'log_manager') and self.log_manager is not None:
+                            self.log_manager.error(f"Invalid host {host!r}")
+                        else:
+                            print(f"Invalid host {host!r}", file=sys.stderr)
+                        host = None
+                        port = None
 
             self.host = host
             self.port = port
@@ -122,14 +165,23 @@ class HTTPRequestHandler(SimpleHTTPRequestHandler):
                             if not hasattr(service, "handle_"+self.command):
                                 raise ValueError(f"Service to handle {path} does not have a {self.command} handler, but a route for it exists.")
                             method = getattr(service, "handle_"+self.command)
+                            self._current_service = service
                             method(self,path,args)
                             handled = True
                             break
                         except Exception as e:
                             if isinstance(e, (ConnectionAbortedError, ConnectionResetError, BrokenPipeError)) or (ssl and isinstance(e, ssl.SSLEOFError)):
-                                print(f"Client disconnected while handling {self.command} request for /{'/'.join(path)}: {e}")
+                                msg = f"Client disconnected while handling {self.command} request for /{'/'.join(path)}: {e}"
+                                if hasattr(self, 'log_manager') and self.log_manager is not None:
+                                    self.log_manager.error(msg)
+                                else:
+                                    print(msg, file=sys.stderr)
                                 return
-                            print(f"Error while handling {self.command} request for /{'/'.join(path)}: {e}")
+                            msg = f"Error while handling {self.command} request for /{'/'.join(path)}: {e}"
+                            if hasattr(self, 'log_manager') and self.log_manager is not None:
+                                self.log_manager.error(msg)
+                            else:
+                                print(msg, file=sys.stderr)
                             self.errsvc.handle(self,path,args,self.command,HTTPStatus.INTERNAL_SERVER_ERROR)
                             handled = True
                             break
@@ -142,6 +194,13 @@ class HTTPRequestHandler(SimpleHTTPRequestHandler):
                     self.errsvc.handle(self,path,args,self.command,HTTPStatus.NOT_FOUND)
 
             self.wfile.flush()
+
+            if hasattr(self, 'log_manager') and self.log_manager is not None:
+                status = getattr(self, '_response_status', 0)
+                length = getattr(self, '_response_length', 0)
+                client_ip = self.address_string()
+                self.log_manager.access(self.requestline, status, client_ip, length)
+
         except TimeoutError as e:
             #a read or a write timed out.  Discard this connection
             self.log_error("Request timed out: %r", e)

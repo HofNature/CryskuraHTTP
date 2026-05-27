@@ -1,8 +1,9 @@
 import os
+import sys
 try:
     import ssl
 except ImportError:
-    print("Warning: SSL module not found. HTTPS is not supported.")
+    print("Warning: SSL module not found. HTTPS is not supported.", file=sys.stderr)
     ssl = None
 import socket
 import threading
@@ -10,7 +11,9 @@ from http.server import ThreadingHTTPServer
 from .uPnP import uPnPClient, _get_local_addresses
 from .Handler import HTTPRequestHandler as Handler
 from .Services import BaseService, FileService, ErrorService
-
+from .TrustedProxy import TrustedProxy
+from .LogManager import LogManager
+from .CORSManager import CORSManager, CORSConfig
 
 class _BoundHTTPServer(ThreadingHTTPServer):
     """A ThreadingHTTPServer subclass that uses per-instance address_family
@@ -39,7 +42,7 @@ class HTTPServer:
     def __init__(self, interface=None, port=8080, services=None,
                  error_service=None, server_name: str = "CryskuraHTTP/1.0",
                  forcePort: bool = False, certfile=None, uPnP=False,
-                 dual_stack: bool = True):
+                 dual_stack: bool = True, trusted_proxy_ips=None, cors=None, log_dir=None):
 
         # --- Normalize bind addresses ---
         if interface is None:
@@ -100,7 +103,7 @@ class HTTPServer:
         if uPnP:
             self.uPnP = uPnPClient(self.interface)
             if not self.uPnP.available:
-                print("Disabling uPnP port forwarding.")
+                print("Disabling uPnP port forwarding.", file=sys.stderr)
                 self.uPnP = None
         else:
             self.uPnP = None
@@ -140,6 +143,24 @@ class HTTPServer:
         self.servers = []       # list of (server, thread)
         self._force_port = forcePort
 
+
+        if trusted_proxy_ips is not None:
+            self.proxy = TrustedProxy(trusted_proxy_ips)
+        else:
+            self.proxy = None
+
+        if cors is not None:
+            if isinstance(cors, CORSConfig):
+                self.cors_manager = CORSManager(cors)
+            elif isinstance(cors, CORSManager):
+                self.cors_manager = cors
+            else:
+                raise ValueError(f"Invalid CORS configuration: {cors!r}")
+        else:
+            self.cors_manager = None
+
+        self.log_manager = LogManager(log_dir=log_dir, server_name=server_name)
+
     @staticmethod
     def _resolve_family(interface):
         try:
@@ -151,7 +172,9 @@ class HTTPServer:
 
     def start(self, threaded: bool = True):
         handler = lambda *args, **kwargs: Handler(
-            *args, services=self.services, errsvc=self.error_service, **kwargs)
+            *args, services=self.services, errsvc=self.error_service,
+            proxy=self.proxy, cors_manager=self.cors_manager,
+            log_manager=self.log_manager, **kwargs)
 
         for iface, port in self.bind_addresses:
             family = self._resolve_family(iface)
@@ -164,7 +187,7 @@ class HTTPServer:
                 if e.errno == 98 or getattr(e, 'winerror', 0) == 10048:
                     msg = f"Port {port} on {iface} is already in use."
                     if self._force_port:
-                        print(f"{msg} Forcing anyway (may fail).")
+                        self.log_manager.server_event(f"{msg} Forcing anyway (may fail).", level="WARNING")
                         continue
                     raise ValueError(msg)
                 raise ValueError(f"Failed to bind {iface}:{port}: {e}")
@@ -183,9 +206,9 @@ class HTTPServer:
                     server.socket, server_side=True)
 
             if family == socket.AF_INET6:
-                print(f"Server started at [{iface}]:{port}")
+                self.log_manager.server_event(f"Server started at [{iface}]:{port}")
             else:
-                print(f"Server started at {iface}:{port}")
+                self.log_manager.server_event(f"Server started at {iface}:{port}")
 
             thread = threading.Thread(target=server.serve_forever)
             thread.daemon = threaded
@@ -205,7 +228,7 @@ class HTTPServer:
                         port, port, "TCP", self.server_name)
                     if res:
                         for mapping in mappings:
-                            print(f"Service is available at {mapping[0]}:{mapping[1]}")
+                            self.log_manager.server_event(f"Service is available at {mapping[0]}:{mapping[1]}")
 
         if not threaded:
             try:
@@ -213,7 +236,7 @@ class HTTPServer:
                     for _, t in self.servers:
                         t.join(timeout=0.25)
             except KeyboardInterrupt:
-                print(f"\nServer on port {self.port} stopped.")
+                self.log_manager.server_event(f"Server on port {self.port} stopped.")
                 self.stop()
 
     def stop(self):
@@ -229,3 +252,6 @@ class HTTPServer:
             server.server_close()
 
         self.servers.clear()
+
+        if self.log_manager is not None:
+            self.log_manager.close()

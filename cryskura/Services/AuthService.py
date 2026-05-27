@@ -12,12 +12,6 @@ from . import BaseService, Route
 from .. import Handler
 from ..Pages import Login_Page, Cryskura_Icon
 
-ac_headers = {
-    "Access-Control-Allow-Origin": "*",
-    "Access-Control-Allow-Methods": "*",
-    "Access-Control-Allow-Headers": "*"
-}
-
 class AuthVerify:
     def __init__(self, auth_data:dict[str, str], expire_time:int=7*86400):
         self.auth_data = auth_data
@@ -106,8 +100,6 @@ class AuthService(BaseService):
         def send_json(status: HTTPStatus, payload: dict, extra_headers: dict | None = None):
             body = json.dumps(payload).encode("utf-8")
             request.send_response(status)
-            for key, value in ac_headers.items():
-                request.send_header(key, value)
             request.send_header("Content-Type", "application/json; charset=utf-8")
             request.send_header("Content-Length", str(len(body)))
             if extra_headers is not None:
@@ -120,8 +112,6 @@ class AuthService(BaseService):
         def send_login_page():
             body = self.login_page.encode("utf-8")
             request.send_response(HTTPStatus.OK)
-            for key, value in ac_headers.items():
-                request.send_header(key, value)
             request.send_header("Content-Type", "text/html; charset=utf-8")
             request.send_header("Content-Length", str(len(body)))
             request.end_headers()
@@ -133,8 +123,6 @@ class AuthService(BaseService):
             login_url = f"{self.auth_path}?next={quote(request.path, safe='')}"
             if method == "GET":
                 request.send_response(HTTPStatus.TEMPORARY_REDIRECT)
-                for key, value in ac_headers.items():
-                    request.send_header(key, value)
                 request.send_header("Location", login_url)
                 request.end_headers()
             else:
@@ -143,8 +131,6 @@ class AuthService(BaseService):
 
         if method == "OPTIONS":
             request.send_response(HTTPStatus.NO_CONTENT)
-            for key, value in ac_headers.items():
-                request.send_header(key, value)
             request.send_header("Content-Length", "0")
             request.end_headers()
             return

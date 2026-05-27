@@ -146,6 +146,11 @@ cryskura --help
 - `-i INTERFACE, --interface INTERFACE`：监听的接口。可多次指定以实现多 IP 监听。支持 IPv4、IPv6 地址或主机名。默认值：`::`。
 - `-j HTTP_TO_HTTPS, --http_to_https HTTP_TO_HTTPS`：将 HTTP 请求重定向到 HTTPS 的端口。
 - `--single-stack`：禁用双栈模式。IPv6 套接字将只接受 IPv6 连接（IPV6_V6ONLY=1）。适用于双栈支持有问题的平台。
+- `-tp, --trusted-proxy`：受信任的反向代理 IP 或 CIDR 范围。可多次指定。
+- `--cors-origin`：CORS 允许的来源。可多次指定（默认值：`*`）。
+- `--cors-credentials`：启用 CORS 凭证支持。
+- `--cors-max-age`：CORS 预检请求的缓存时间（秒，默认值：86400）。
+- `--log-dir`：日志文件目录路径。不设置则禁用文件日志。
 
 ## 多 IP/端口监听与双栈
 
@@ -414,6 +419,74 @@ class MyService(BaseService):
         request.send_header("Content-Type", "text/plain")
         request.end_headers()
         request.wfile.write(b"Hello from MyService!")
+```
+
+### 反向代理支持
+
+当 CryskuraHTTP 运行在反向代理（如 nginx、HAProxy）之后时，可以配置受信任的代理 IP，使服务器使用 `X-Forwarded-*` 头部获取客户端真实 IP、请求协议和主机信息：
+
+```python
+from cryskura import Server
+from cryskura.Services import FileService
+
+server = Server(
+    services=[FileService(".", "/")],
+    trusted_proxy_ips=["127.0.0.1", "10.0.0.0/8"],
+)
+```
+
+或通过命令行：
+
+```bash
+cryskura -tp 127.0.0.1 -tp 10.0.0.0/8
+```
+
+当请求来自受信任的 IP 时，服务器使用：
+- `X-Forwarded-For`（最左侧 IP）作为客户端地址
+- `X-Forwarded-Proto` 作为请求协议
+- `X-Forwarded-Host` 和 `X-Forwarded-Port` 用于虚拟主机路由
+
+### CORS 配置
+
+统一配置跨域资源共享（CORS）头部：
+
+```python
+from cryskura import Server, CORSConfig, CORSManager
+from cryskura.Services import FileService, AuthService
+
+# 简单用法：所有服务使用同一个 CORSConfig
+cors = CORSConfig(
+    allow_origins=["https://example.com"],
+    allow_credentials=True,
+)
+server = Server(services=[...], cors=cors)
+
+# 高级用法：按服务类型覆盖
+cors_mgr = CORSManager(CORSConfig(allow_origins=["*"]))
+cors_mgr.set_service_override(
+    AuthService, CORSConfig(allow_origins=["https://auth.example.com"])
+)
+server = Server(services=[...], cors=cors_mgr)
+```
+
+命令行选项：
+
+```bash
+cryskura --cors-origin https://example.com --cors-credentials --cors-max-age 3600
+```
+
+### 日志记录
+
+通过 `log_dir` 参数启用文件日志：
+
+```python
+server = Server(services=[...], log_dir="/var/log/cryskura")
+```
+
+日志写入 `<log_dir>/latest/access.log` 和 `<log_dir>/latest/server.log`。服务器启动时和每日午夜，`latest` 目录会自动轮转为时间戳命名（如 `2026-05-27T15-30-00/`）。
+
+```bash
+cryskura --log-dir /var/log/cryskura
 ```
 
 ## 使用 uPnP 客户端
