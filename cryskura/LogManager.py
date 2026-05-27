@@ -66,11 +66,21 @@ class LogManager:
             new_name = os.path.join(log_dir_real, self._timestamped_name())
             os.rename(latest, new_name)
 
+    def _close_handlers(self) -> None:
+        """Close all file handlers so the latest/ directory can be renamed."""
+        for logger in (self._access_logger, self._server_logger):
+            if logger is not None:
+                for handler in list(logger.handlers):
+                    if isinstance(handler, logging.FileHandler):
+                        handler.close()
+                        logger.removeHandler(handler)
+
     def rotate(self) -> None:
         """Rename latest/ to a timestamped directory, recreate latest/ loggers."""
         if self._log_dir is None:
             return
         with self._lock:
+            self._close_handlers()
             log_dir_real = os.path.realpath(self._log_dir)
             latest = self._latest_dir(log_dir_real)
             if os.path.isdir(latest):
@@ -176,12 +186,8 @@ class LogManager:
             print(message, file=sys.stderr)
 
     def close(self) -> None:
-        """Close all log handlers."""
+        """Close all log handlers and cancel rotation timer."""
         if self._rotation_timer is not None:
             self._rotation_timer.cancel()
             self._rotation_timer = None
-        for logger in (self._access_logger, self._server_logger):
-            if logger is not None:
-                for handler in list(logger.handlers):
-                    handler.close()
-                    logger.removeHandler(handler)
+        self._close_handlers()
